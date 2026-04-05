@@ -574,13 +574,13 @@ static void decorations_update_proc(Layer *layer, GContext *ctx) {
   int r = layer_get_bounds(layer).size.w / 2;
   // Separators: after date, between sections, before milestone
 #ifdef PBL_PLATFORM_CHALK
-  prv_draw_safe_line(ctx, 80, r);   // after date
-  prv_draw_safe_line(ctx, 98, r);   // between slot 0-1 and slot 2-3
+  prv_draw_safe_line(ctx, 74, r);   // after date
+  prv_draw_safe_line(ctx, 101, r);  // between slot 0-1 and slot 2-3
   prv_draw_safe_line(ctx, 128, r);  // between slot 2-3 and slot 4
   prv_draw_safe_line(ctx, 156, r);  // after slot 4
-  // Column divider for slot pairs
-  graphics_draw_line(ctx, GPoint(90, 99), GPoint(90, 127));
-  graphics_draw_line(ctx, GPoint(90, 129), GPoint(90, 155));
+  // Column dividers for pairs
+  graphics_draw_line(ctx, GPoint(90, 75),  GPoint(90, 100));
+  graphics_draw_line(ctx, GPoint(90, 102), GPoint(90, 127));
 #else // gabbro
   prv_draw_safe_line(ctx, 100, r);  // after date
   prv_draw_safe_line(ctx, 136, r);  // between slot 0-1 and slot 2-3
@@ -629,7 +629,7 @@ static void prv_create_layout(Layer *root) {
                      s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
   s_time_layer    = prv_make_layer(root, GRect(0, 19, 200, 52),
                      s_colors.values, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter);
-  s_date_layer    = prv_make_layer(root, GRect(0, 72, 200, 18),
+  s_date_layer    = prv_make_layer(root, GRect(0, 65, 200, 18),
                      GColorLightGray, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
 
   s_decorations_layer = layer_create(GRect(0, 0, 200, 228));
@@ -656,8 +656,8 @@ static void prv_create_layout(Layer *root) {
                      s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
   s_time_layer    = prv_make_layer(root, GRect(0, 19, 144, 42),
                      s_colors.values, FONT_KEY_LECO_38_BOLD_NUMBERS, GTextAlignmentCenter);
-  s_date_layer    = prv_make_layer(root, GRect(0, 62, 144, 16),
-                     GColorLightGray, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
+  s_date_layer    = prv_make_layer(root, GRect(0, 59, 144, 14),
+                     GColorLightGray, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
 
   s_decorations_layer = layer_create(GRect(0, 0, 144, 168));
 
@@ -684,20 +684,22 @@ static void prv_create_layout(Layer *root) {
 // Safe col widths per safe-zone math: left col GRect(10,y,80,h), right GRect(90,y,80,h)
 static void prv_create_layout(Layer *root) {
   s_battery_layer = layer_create(GRect(0, 0, 180, 180));
-  s_header_layer  = prv_make_layer(root, GRect(40, 8, 100, 14),
+  s_header_layer  = prv_make_layer(root, GRect(40, 6, 100, 14),
                      s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
-  s_time_layer    = prv_make_layer(root, GRect(14, 24, 152, 36),
+  s_time_layer    = prv_make_layer(root, GRect(14, 20, 152, 36),
                      s_colors.values, FONT_KEY_LECO_32_BOLD_NUMBERS, GTextAlignmentCenter);
-  s_date_layer    = prv_make_layer(root, GRect(8, 62, 164, 16),
-                     GColorLightGray, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
+  s_date_layer    = prv_make_layer(root, GRect(20, 55, 140, 18),
+                     GColorLightGray, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
 
   s_decorations_layer = layer_create(GRect(0, 0, 180, 180));
 
-  // Pair 0+1: Y=100, label h=14, value h=14 → section ends at Y=128
-  // Pair 2+3: Y=130, section ends Y=158
-  // Single 4: Y=160, section ends Y=174
-  int pair_ys[2]   = { 100, 130 };
-  int single_y     = 160;
+  // Chrome ends at Y=75. Available: 180-75=105px
+  // Pair 0+1: Y=76, label h=13, value h=13 → 26px, ends Y=102
+  // Pair 2+3: Y=103, 26px, ends Y=129
+  // Single 4: Y=131, label h=13, value h=13 → ends Y=157
+  // Total: 75+26+26+26=153 ≤ 180 ✓
+  int pair_ys[2]   = { 74, 100 };
+  int single_y     = 126;
   int col_l_x = 10, col_r_x = 92, col_w = 78;
 
   for (int i = 0; i < NUM_SLOTS; i++) {
@@ -707,11 +709,11 @@ static void prv_create_layout(Layer *root) {
       int side = i % 2;
       int cx   = (side == 0) ? col_l_x : col_r_x;
       int y    = pair_ys[pair];
-      lr = GRect(cx, y,      col_w, 14);
-      vr = GRect(cx, y + 14, col_w, 14);
+      lr = GRect(cx, y,      col_w, 13);
+      vr = GRect(cx, y + 13, col_w, 13);
     } else {
-      lr = GRect(10, single_y,      160, 14);
-      vr = GRect(10, single_y + 14, 160, 14);
+      lr = GRect(10, single_y,      160, 13);
+      vr = GRect(10, single_y + 13, 160, 13);
     }
     s_field_label_layers[i] = prv_make_layer(root, lr,
       s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
@@ -735,15 +737,15 @@ static void prv_create_layout(Layer *root) {
                      s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
   s_time_layer    = prv_make_layer(root, GRect(28, 24, 204, 52),
                      s_colors.values, FONT_KEY_LECO_42_NUMBERS, GTextAlignmentCenter);
-  s_date_layer    = prv_make_layer(root, GRect(14, 78, 232, 18),
+  s_date_layer    = prv_make_layer(root, GRect(14, 65, 232, 18),
                      GColorLightGray, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
 
   s_decorations_layer = layer_create(GRect(0, 0, 260, 260));
 
   // Pairs: Y=104 and Y=138; each = label(14)+value(18) = 32px tall
   // Singles: Y=172 and Y=196; each = label(12)+value(16) = 28px
-  int pair_ys[2]  = { 104, 138 };
-  int single_ys[2]= { 174, 202 };
+  int pair_ys[2]  = { 102, 138 };
+  int single_ys[2]= { 174, 212 };
   int col_l_x = 14, col_r_x = 134, col_w = 112;
 
   for (int i = 0; i < NUM_SLOTS; i++) {
@@ -756,8 +758,8 @@ static void prv_create_layout(Layer *root) {
       vr = GRect(cx, y + 14, col_w, 18);
     } else {
       int sy = single_ys[i - 4];
-      lr = GRect(20, sy,      220, 12);
-      vr = GRect(20, sy + 12, 220, 16);
+      lr = GRect(20, sy,      220, 14);
+      vr = GRect(20, sy + 12, 220, 20);
     }
     s_field_label_layers[i] = prv_make_layer(root, lr,
       s_colors.accent, FONT_KEY_GOTHIC_14_BOLD, GTextAlignmentCenter);
@@ -886,7 +888,7 @@ static void main_window_load(Window *window) {
 #elif defined(PBL_PLATFORM_GABBRO)
   overlay_top = 100; overlay_h = 160;
 #elif defined(PBL_PLATFORM_CHALK)
-  overlay_top = 82; overlay_h = 98;
+  overlay_top = 75; overlay_h = 82;
 #else  // aplite / basalt
   overlay_top = 80; overlay_h = 88;
 #endif
