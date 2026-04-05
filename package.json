@@ -1,0 +1,51 @@
+{
+  "name": "artemis-ii",
+  "author": "Artemis Watchface",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {
+    "@rebble/clay": "^1.0.8"
+  },
+  "pebble": {
+    "displayName": "Artemis II",
+    "uuid": "4ad49ae5-3435-4c88-807b-17a31a56e8ce",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": ["emery", "basalt", "aplite", "chalk", "gabbro"],
+    "watchapp": { "watchface": true },
+    "capabilities": ["configurable"],
+    "messageKeys": [
+      "REQUEST_ARTEMIS",
+      "ARTEMIS_PHASE",
+      "ARTEMIS_SPEED",
+      "ARTEMIS_DISTANCE",
+      "ARTEMIS_MOON_DIST",
+      "ARTEMIS_MILESTONE_NAME",
+      "ARTEMIS_MILESTONE_MET",
+      "ARTEMIS_COMPLETE",
+      "ARTEMIS_G_FORCE",
+      "ARTEMIS_ALTITUDE",
+      "ARTEMIS_PERIAPSIS",
+      "ARTEMIS_APOAPSIS",
+      "ARTEMIS_SIGNAL",
+      "ARTEMIS_STATION",
+      "ARTEMIS_DOWNLINK",
+      "UPDATE_INTERVAL",
+      "USE_MILES",
+      "SLOT_1",
+      "SLOT_2",
+      "SLOT_3",
+      "SLOT_4",
+      "SLOT_5",
+      "SLOT_6",
+      "COLOR_BACKGROUND",
+      "COLOR_ACCENT",
+      "COLOR_VALUES",
+      "COLOR_HIGHLIGHTS",
+      "COLOR_THEME",
+      "VIBRATE_EVENTS"
+    ],
+    "resources": { "media": [] }
+  }
+}
