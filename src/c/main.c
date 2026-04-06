@@ -766,6 +766,7 @@ static void prv_create_layout(Layer *root) {
 
 // ─── AppMessage ───────────────────────────────────────────────────────────────
 static void inbox_received_callback(DictionaryIterator *iter, void *context) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "INBOX: received");
   bool data_changed = false, cfg_changed = false;
 
 #define FETCH_STR(key, dst) { \
@@ -803,6 +804,7 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     prv_render_all_slots();
   }
 
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "INBOX: clay section");
   // Clay settings
   { Tuple *t = dict_find(iter, MESSAGE_KEY_UPDATE_INTERVAL);
     if (t) { s_settings.update_interval_min = t->value->int32; cfg_changed = true; } }
