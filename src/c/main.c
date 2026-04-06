@@ -841,17 +841,24 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
 #undef FETCH_COLOR
 
   if (cfg_changed) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: persist");
     persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: build_color theme=%d bg=%06lx", s_settings.color_theme, (unsigned long)s_settings.color_background);
     prv_build_color_scheme();
-    // Reapply colors to all layers
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: recolor header");
     text_layer_set_text_color(s_header_layer, s_colors.accent);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: recolor time");
     text_layer_set_text_color(s_time_layer, s_colors.values);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: recolor slots");
     for (int i = 0; i < NUM_SLOTS; i++) {
       if (s_field_label_layers[i]) text_layer_set_text_color(s_field_label_layers[i], s_colors.accent);
       if (s_field_value_layers[i]) text_layer_set_text_color(s_field_value_layers[i], s_colors.values);
     }
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: mark dirty");
     layer_mark_dirty(s_decorations_layer);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: render slots");
     prv_render_all_slots();
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: done");
   }
 }
 
