@@ -10,11 +10,10 @@
 #define MISSION_END_HOURS  229
 
 // ─── Special events ───────────────────────────────────────────────────────────
-// Each event is active from its epoch until the next event's epoch.
-// The last event ends after EVENT_LAST_DURATION_S seconds.
+// Each event is shown for EVENT_DISPLAY_S seconds after its epoch, then dismissed.
 // All times are UTC unix epochs. EDT = UTC-4.
 // Source: https://www.nasa.gov/missions/nasa-answers-your-most-pressing-artemis-ii-questions
-#define EVENT_LAST_DURATION_S  (97 * 60)  // 9:20 PM EDT lasts ~97min until live coverage ends
+#define EVENT_DISPLAY_S  (5 * 60)  // each event banner shows for 5 minutes
 
 typedef struct {
   uint32_t    epoch;    // UTC unix timestamp when event becomes active
@@ -33,16 +32,11 @@ static const SpecialEvent s_special_events[] = {
 
 // Returns the active special event message, or NULL if none active
 static const char *prv_get_special_event(void) {
-  time_t now = time(NULL);
+  uint32_t now = (uint32_t)time(NULL);
   for (int i = 0; i < NUM_SPECIAL_EVENTS; i++) {
     uint32_t start = s_special_events[i].epoch;
-    uint32_t end;
-    if (i < NUM_SPECIAL_EVENTS - 1) {
-      end = s_special_events[i + 1].epoch;
-    } else {
-      end = start + EVENT_LAST_DURATION_S;
-    }
-    if ((uint32_t)now >= start && (uint32_t)now < end) {
+    uint32_t end   = start + EVENT_DISPLAY_S;
+    if (now >= start && now < end) {
       return s_special_events[i].message;
     }
   }
@@ -827,17 +821,24 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     if (t) { s_settings.slots[i] = (uint8_t)t->value->int32; cfg_changed = true; }
   }
 
-  // Color settings
+  // Color settings — Clay color picker sends hex string "0xRRGGBB", not int
+#define FETCH_COLOR(key, dst) { \
+  Tuple *t = dict_find(iter, MESSAGE_KEY_##key); \
+  if (t) { \
+    if (t->type == TUPLE_CSTRING) { \
+      dst = (uint32_t)strtol(t->value->cstring, NULL, 16); \
+    } else { \
+      dst = (uint32_t)t->value->int32; \
+    } \
+    cfg_changed = true; \
+  } }
   { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_THEME);
     if (t) { s_settings.color_theme = (uint8_t)t->value->int32; cfg_changed = true; } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_BACKGROUND);
-    if (t) { s_settings.color_background = (uint32_t)t->value->int32; cfg_changed = true; } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_ACCENT);
-    if (t) { s_settings.color_accent = (uint32_t)t->value->int32; cfg_changed = true; } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_VALUES);
-    if (t) { s_settings.color_values = (uint32_t)t->value->int32; cfg_changed = true; } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_HIGHLIGHTS);
-    if (t) { s_settings.color_highlights = (uint32_t)t->value->int32; cfg_changed = true; } }
+  FETCH_COLOR(COLOR_BACKGROUND, s_settings.color_background)
+  FETCH_COLOR(COLOR_ACCENT,     s_settings.color_accent)
+  FETCH_COLOR(COLOR_VALUES,     s_settings.color_values)
+  FETCH_COLOR(COLOR_HIGHLIGHTS, s_settings.color_highlights)
+#undef FETCH_COLOR
 
   if (cfg_changed) {
     persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
