@@ -821,24 +821,18 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     if (t) { s_settings.slots[i] = (uint8_t)t->value->int32; cfg_changed = true; }
   }
 
-  // Color settings — Clay color picker sends hex string "0xRRGGBB", not int
-#define FETCH_COLOR(key, dst) { \
-  Tuple *t = dict_find(iter, MESSAGE_KEY_##key); \
-  if (t) { \
-    if (t->type == TUPLE_CSTRING) { \
-      dst = (uint32_t)strtol(t->value->cstring, NULL, 16); \
-    } else { \
-      dst = (uint32_t)t->value->int32; \
-    } \
-    cfg_changed = true; \
-  } }
+  // Color settings — temporarily ignored for crash isolation
+  // TODO: re-enable once crash is diagnosed
   { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_THEME);
-    if (t) { s_settings.color_theme = (uint8_t)t->value->int32; cfg_changed = true; } }
-  FETCH_COLOR(COLOR_BACKGROUND, s_settings.color_background)
-  FETCH_COLOR(COLOR_ACCENT,     s_settings.color_accent)
-  FETCH_COLOR(COLOR_VALUES,     s_settings.color_values)
-  FETCH_COLOR(COLOR_HIGHLIGHTS, s_settings.color_highlights)
-#undef FETCH_COLOR
+    if (t) { (void)t; /* ignored */ } }
+  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_BACKGROUND);
+    if (t) { APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: color_bg type=%d", t->type); } }
+  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_ACCENT);
+    if (t) { APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: color_ac type=%d", t->type); } }
+  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_VALUES);
+    if (t) { (void)t; /* ignored */ } }
+  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_HIGHLIGHTS);
+    if (t) { (void)t; /* ignored */ } }
 
   if (cfg_changed) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: persist");
