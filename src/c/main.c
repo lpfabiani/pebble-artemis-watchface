@@ -328,9 +328,11 @@ static const char *s_field_labels[FIELD_COUNT] = {
 
 static void prv_render_slot(int i) {
   FieldType ft = (FieldType)s_settings.slots[i];
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "SLOT %d ft=%d", i, (int)ft);
   TextLayer *lbl = s_field_label_layers[i];
   TextLayer *val = s_field_value_layers[i];
   if (!lbl || !val) return;
+  if ((uint8_t)s_settings.slots[i] >= (uint8_t)FIELD_COUNT) ft = FIELD_NONE;
 
   if (ft == FIELD_NONE) {
     text_layer_set_text(lbl, "");
@@ -443,6 +445,7 @@ static void prv_render_slot(int i) {
 }
 
 static void prv_render_all_slots(void) {
+  if (s_field_label_layers[0] == NULL) return; // Guard against early messages
   for (int i = 0; i < NUM_SLOTS; i++) prv_render_slot(i);
 }
 
@@ -807,34 +810,53 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "INBOX: clay section");
   // Clay settings
   { Tuple *t = dict_find(iter, MESSAGE_KEY_UPDATE_INTERVAL);
-    if (t) { s_settings.update_interval_min = t->value->int32; cfg_changed = true; } }
+    if (t) { s_settings.update_interval_min = (t->type == TUPLE_CSTRING)
+      ? atoi(t->value->cstring) : t->value->int32; cfg_changed = true; } }
   { Tuple *t = dict_find(iter, MESSAGE_KEY_USE_MILES);
     if (t) { s_settings.use_miles = (t->value->uint8 != 0); cfg_changed = true; } }
   { Tuple *t = dict_find(iter, MESSAGE_KEY_VIBRATE_EVENTS);
     if (t) { s_settings.vibrate_events = (t->value->uint8 != 0); cfg_changed = true; } }
 
   // Slot config
+  // Clay sends all select/color values as cstrings — parse accordingly
+#define FETCH_CLAY_INT(key, dst) { \
+  Tuple *t = dict_find(iter, MESSAGE_KEY_##key); \
+  if (t) { \
+    dst = (t->type == TUPLE_CSTRING) \
+      ? (uint8_t)atoi(t->value->cstring) \
+      : (uint8_t)t->value->int32; \
+    cfg_changed = true; \
+  } }
+#define FETCH_CLAY_COLOR(key, dst) { \
+  Tuple *t = dict_find(iter, MESSAGE_KEY_##key); \
+  if (t) { \
+    dst = (t->type == TUPLE_CSTRING) \
+      ? (uint32_t)strtol(t->value->cstring, NULL, 16) \
+      : (uint32_t)t->value->int32; \
+    cfg_changed = true; \
+  } }
+
   uint32_t slot_keys[6] = {
     MESSAGE_KEY_SLOT_1, MESSAGE_KEY_SLOT_2, MESSAGE_KEY_SLOT_3,
     MESSAGE_KEY_SLOT_4, MESSAGE_KEY_SLOT_5, MESSAGE_KEY_SLOT_6
   };
   for (int i = 0; i < MAX_SLOTS; i++) {
     Tuple *t = dict_find(iter, slot_keys[i]);
-    if (t) { s_settings.slots[i] = (uint8_t)t->value->int32; cfg_changed = true; }
+    if (t) {
+      s_settings.slots[i] = (t->type == TUPLE_CSTRING)
+        ? (uint8_t)atoi(t->value->cstring)
+        : (uint8_t)t->value->int32;
+      cfg_changed = true;
+    }
   }
 
-  // Color settings — temporarily ignored for crash isolation
-  // TODO: re-enable once crash is diagnosed
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_THEME);
-    if (t) { (void)t; /* ignored */ } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_BACKGROUND);
-    if (t) { APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: color_bg type=%d", t->type); } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_ACCENT);
-    if (t) { APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: color_ac type=%d", t->type); } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_VALUES);
-    if (t) { (void)t; /* ignored */ } }
-  { Tuple *t = dict_find(iter, MESSAGE_KEY_COLOR_HIGHLIGHTS);
-    if (t) { (void)t; /* ignored */ } }
+  FETCH_CLAY_INT(COLOR_THEME, s_settings.color_theme)
+  FETCH_CLAY_COLOR(COLOR_BACKGROUND, s_settings.color_background)
+  FETCH_CLAY_COLOR(COLOR_ACCENT,     s_settings.color_accent)
+  FETCH_CLAY_COLOR(COLOR_VALUES,     s_settings.color_values)
+  FETCH_CLAY_COLOR(COLOR_HIGHLIGHTS, s_settings.color_highlights)
+#undef FETCH_CLAY_INT
+#undef FETCH_CLAY_COLOR
 
   if (cfg_changed) {
     APP_LOG(APP_LOG_LEVEL_DEBUG, "CFG: persist");
