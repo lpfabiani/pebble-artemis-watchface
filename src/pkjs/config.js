@@ -1,3 +1,16 @@
+  // ─── Platform detection ───────────────────────────────────────────────────────
+  var isColor = true;  // default: assume color if detection unavailable
+  try {
+    if (typeof Pebble !== 'undefined' && typeof Pebble.getActiveWatchInfo === 'function') {
+      var watchInfo = Pebble.getActiveWatchInfo();
+      if (watchInfo && watchInfo.platform) {
+        isColor = ['basalt', 'chalk', 'emery'].indexOf(watchInfo.platform) !== -1;
+      }
+    }
+  } catch (e) {
+    // Older SDK — fall back to color defaults
+  }
+
 var fieldOptions = [
   { label: "None",                  value: "0"  },
   { label: "Mission Elapsed Time",  value: "1"  },
@@ -15,14 +28,21 @@ var fieldOptions = [
   { label: "Downlink Rate",         value: "13" }
 ];
 
-var themeOptions = [
-  { label: "Space (default)", value: "0" },
-  { label: "Dark",            value: "1" },
-  { label: "Clear",           value: "2" },
-  { label: "B&W",             value: "3" },
-  { label: "NASA",            value: "4" },
-  { label: "Custom",          value: "5" }
-];
+// This must be aligned with artemis_config.h
+var themeOptions = isColor
+    ? [
+        { label: "B&W Dark",        value: "0" },
+        { label: "B&W Clear",       value: "1" },
+        { label: "Space (default)", value: "2" },
+        { label: "Dark",            value: "3" },
+        { label: "Clear",           value: "4" },
+        { label: "NASA",            value: "5" },
+        { label: "Custom",          value: "6" }
+      ]
+    : [
+        { label: "Dark",  value: "0" },
+        { label: "Light", value: "1" }
+      ];
 
 module.exports = [
   {
@@ -78,6 +98,15 @@ module.exports = [
         "options": fieldOptions
       },
       {
+        "capabilities": ["EMERY"],
+        "type": "select",
+        "messageKey": "SLOT_6",
+        "label": "Position 6",
+        "defaultValue": "6",
+        "options": fieldOptions
+      }
+      {
+        "capabilities": ["GABBRO"],
         "type": "select",
         "messageKey": "SLOT_6",
         "label": "Position 6",
@@ -130,17 +159,14 @@ module.exports = [
         "defaultValue": "Color Theme"
       },
       {
-        "type": "text",
-        "defaultValue": "Not available on black & white watches."
-      },
-      {
         "type": "select",
         "messageKey": "COLOR_THEME",
         "label": "Theme",
-        "defaultValue": "0",
-        "options": themeOptions
+        "defaultValue": isColor ? "2" : "0",
+        "options": themeOptions_bw
       },
       {
+        "capabilities": ["COLOR"],
         "type": "color",
         "messageKey": "COLOR_BACKGROUND",
         "label": "Background",
@@ -148,6 +174,7 @@ module.exports = [
         "sunlight": true
       },
       {
+        "capabilities": ["COLOR"],
         "type": "color",
         "messageKey": "COLOR_ACCENT",
         "label": "Accent (labels, title, lines)",
@@ -155,6 +182,7 @@ module.exports = [
         "sunlight": true
       },
       {
+        "capabilities": ["COLOR"],
         "type": "color",
         "messageKey": "COLOR_VALUES",
         "label": "Values (time, data)",
@@ -162,6 +190,7 @@ module.exports = [
         "sunlight": true
       },
       {
+        "capabilities": ["COLOR"],
         "type": "color",
         "messageKey": "COLOR_HIGHLIGHTS",
         "label": "Highlights (ETA, battery)",

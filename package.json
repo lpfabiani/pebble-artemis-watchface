@@ -1,14 +1,14 @@
 {
-  "name": "artemis-ii",
-  "author": "Artemis Watchface",
-  "version": "1.0.0",
+  "name": "artemis-missions",
+  "author": "LP Fabiani",
+  "version": "1.2.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
     "@rebble/clay": "^1.0.8"
   },
   "pebble": {
-    "displayName": "Artemis II",
+    "displayName": "Artemis Missions",
     "uuid": "4ad49ae5-3435-4c88-807b-17a31a56e8ce",
     "sdkVersion": "3",
     "enableMultiJS": true,
@@ -44,8 +44,70 @@
       "COLOR_VALUES",
       "COLOR_HIGHLIGHTS",
       "COLOR_THEME",
-      "VIBRATE_EVENTS"
+      "VIBRATE_EVENTS",
+      "ARTEMIS_MS0_NAME", "ARTEMIS_MS0_EPOCH",
+      "ARTEMIS_MS1_NAME", "ARTEMIS_MS1_EPOCH",
+      "ARTEMIS_MS2_NAME", "ARTEMIS_MS2_EPOCH",
+      "ARTEMIS_MS3_NAME", "ARTEMIS_MS3_EPOCH",
+      "ARTEMIS_MS4_NAME", "ARTEMIS_MS4_EPOCH"
     ],
-    "resources": { "media": [] }
+    "resources": {
+      "media": [
+        {
+          "type": "raw",
+          "name": "IMAGE_ARTEMIS_LOGO_BLACK",
+          "file": "Artemis Logo Black - Prepared.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "IMAGE_ARTEMIS_LOGO_WHITE",
+          "file": "Artemis Logo White - Prepared.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "IMAGE_ARTEMIS_LOGO_DARK",
+          "file": "Artemis Logo Dark - Prepared.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "IMAGE_ARTEMIS_LOGO_CLEAR",
+          "file": "Artemis Logo Clear - Prepared.pdc"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_ARTEMIS_NAME_DARK",
+          "file": "Artemis Name Dark.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "IMAGE_ARTEMIS_NAME_CLEAR",
+          "file": "Artemis Name Clear.png"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_14",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[\\x20-\\x7E]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_18",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[\\x20-\\x7E]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_24",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[\\x20-\\x7E]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_36",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[\\x20-\\x7E]"
+        }
+      ]
+    }
   }
 }

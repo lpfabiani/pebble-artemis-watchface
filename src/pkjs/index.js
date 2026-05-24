@@ -5,12 +5,18 @@ var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var clay = new Clay(clayConfig);
 
+// ─── Debug logging ────────────────────────────────────────────────────────────
+var DEBUG_ENABLED = true;  // Set to true to enable debug logging, false to disable
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 var API_ALL_URL   = 'https://artemis.cdnspace.ca/api/all';
 var TIMELINE_URL  = 'https://artemis.cdnspace.ca/api/timeline';
 
 // Throttle: don't re-fetch if we fetched in last 5 minutes
 var THROTTLE_MS = 5 * 60 * 1000;
+
+// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match artemis_config.h MISSION_END_HOURS)
+var MISSION_END_MS = 1775082900000 + 229 * 60 * 60 * 1000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function xhrRequest(url, callback, errorCallback) {
@@ -48,6 +54,19 @@ function getNextMilestone(milestones, metMs) {
     if (m.metMs > metMs && (!next || m.metMs < next.metMs)) next = m;
   }
   return next;
+}
+
+// Returns the next N milestones after metMs, sorted by ascending metMs.
+var MAX_UPCOMING = 5;
+var LAUNCH_EPOCH_MS = 1775082900000;  // Apr 1 2026 22:35 UTC in ms
+function getUpcomingMilestones(milestones, metMs) {
+  if (!milestones || milestones.length === 0) return [];
+  var upcoming = [];
+  for (var i = 0; i < milestones.length; i++) {
+    if (milestones[i].metMs > metMs) upcoming.push(milestones[i]);
+  }
+  upcoming.sort(function(a, b) { return a.metMs - b.metMs; });
+  return upcoming.slice(0, MAX_UPCOMING);
 }
 
 // Shorten milestone name to ≤18 chars at word boundary
@@ -107,8 +126,6 @@ function fetchArtemisData() {
     var downlinkKbps = activeDish ? Math.round((activeDish.downlinkRate || 0) / 1000) : 0;
     var rtltSec      = activeDish ? (activeDish.rtltSeconds || 0) : 0;
 
-    var missionComplete = (typeof metMs !== 'number' || metMs < 0);
-
     // ── Fetch timeline for phase + milestone ──────────────────────────────
     xhrRequest(TIMELINE_URL, function(timelineText) {
       var timeline;
@@ -119,21 +136,47 @@ function fetchArtemisData() {
       var phases     = timeline.phases     || [];
       var milestones = timeline.milestones || [];
 
+      var currentPhase = getCurrentPhase(phases, metMs);
+      var missionComplete = (metMs < 0) || (speedKmS === 0) || (currentPhase === 'EDL');
+
+      if (DEBUG_ENABLED) {
+        console.log('=== ARTEMIS DATA DEBUG ===');
+        console.log('metMs: ' + metMs);
+        console.log('speedKmS: ' + speedKmS);
+        console.log('phase: ' + currentPhase);
+        console.log('metMs < 0: ' + (metMs < 0));
+        console.log('speedKmS === 0: ' + (speedKmS === 0));
+        console.log('phase === EDL: ' + (currentPhase === 'EDL'));
+        console.log('missionComplete: ' + missionComplete);
+        console.log('===========================');
+      }
+
       var phase = missionComplete
         ? (phases.length ? phases[phases.length - 1].phase : 'Complete')
-        : getCurrentPhase(phases, metMs);
+        : currentPhase;
 
       var nextMs         = missionComplete ? null : getNextMilestone(milestones, metMs);
       var milestoneName  = nextMs ? shortenMilestone(nextMs.name) : 'Mission Complete';
       var milestoneMetMs = nextMs ? Math.min(nextMs.metMs, 2147483647) : -1;
 
+      // Pack next 5 upcoming milestones for offline event detection on the watch
+      var upcoming = missionComplete ? [] : getUpcomingMilestones(milestones, metMs);
+      var msMsg = {};
+      for (var i = 0; i < MAX_UPCOMING; i++) {
+        var ms = upcoming[i];
+        msMsg['ARTEMIS_MS' + i + '_NAME']  = ms ? shortenMilestone(ms.name) : '';
+        msMsg['ARTEMIS_MS' + i + '_EPOCH'] = ms
+          ? Math.min(Math.round((LAUNCH_EPOCH_MS + ms.metMs) / 1000), 2147483647)
+          : 0;
+      }
+
       localStorage.setItem('lastArtemisF', String(Date.now()));
 
       console.log('Phase: ' + phase + ' Speed: ' + speedKmS.toFixed(2) +
                   ' Earth: ' + Math.round(distKm) + ' Moon: ' + Math.round(moonDistKm) +
-                  ' Next: ' + milestoneName);
+                  ' Next: ' + milestoneName + ' Upcoming: ' + upcoming.length);
 
-      Pebble.sendAppMessage({
+      Pebble.sendAppMessage(Object.assign({
         'ARTEMIS_PHASE':          phase,
         'ARTEMIS_SPEED':          safeInt(speedKmS, 100),
         'ARTEMIS_DISTANCE':       safeInt(distKm),
@@ -148,7 +191,7 @@ function fetchArtemisData() {
         'ARTEMIS_SIGNAL':         safeInt(rtltSec, 100),
         'ARTEMIS_STATION':        stationName.substring(0, 19),
         'ARTEMIS_DOWNLINK':       downlinkKbps
-      },
+      }, msMsg),
       function() { console.log('Sent OK'); },
       function(e) { console.log('Send failed: ' + JSON.stringify(e)); }
       );
@@ -177,6 +220,14 @@ function fetchArtemisData() {
 
   }, function(err) {
     console.log('api/all fetch error: ' + err);
+    localStorage.setItem('lastArtemisF', String(Date.now()));
+    if (Date.now() >= MISSION_END_MS) {
+      console.log('API error after mission end — sending COMPLETE');
+      Pebble.sendAppMessage({ 'ARTEMIS_COMPLETE': 1 },
+        function() { console.log('Sent COMPLETE OK'); },
+        function(e) { console.log('Send COMPLETE failed: ' + JSON.stringify(e)); }
+      );
+    }
   });
 }
 
