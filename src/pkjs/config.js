@@ -29,7 +29,7 @@ var fieldOptions = [
 ];
 
 // This must be aligned with artemis_config.h
-var themeOptions = isColor
+var themeOptions = isColor  // kept for reference; Color Theme section is removed from UI
     ? [
         { label: "B&W Dark",        value: "0" },
         { label: "B&W Clear",       value: "1" },
@@ -104,7 +104,7 @@ module.exports = [
         "label": "Position 6",
         "defaultValue": "6",
         "options": fieldOptions
-      }
+      },
       {
         "capabilities": ["GABBRO"],
         "type": "select",
@@ -150,55 +150,18 @@ module.exports = [
     ]
   },
 
-  // ── Color Theme ────────────────────────────────────────────────────────────
-  {
-    "type": "section",
-    "items": [
-      {
-        "type": "heading",
-        "defaultValue": "Color Theme"
-      },
-      {
-        "type": "select",
-        "messageKey": "COLOR_THEME",
-        "label": "Theme",
-        "defaultValue": isColor ? "2" : "0",
-        "options": themeOptions_bw
-      },
-      {
-        "capabilities": ["COLOR"],
-        "type": "color",
-        "messageKey": "COLOR_BACKGROUND",
-        "label": "Background",
-        "defaultValue": "0x000000",
-        "sunlight": true
-      },
-      {
-        "capabilities": ["COLOR"],
-        "type": "color",
-        "messageKey": "COLOR_ACCENT",
-        "label": "Accent (labels, title, lines)",
-        "defaultValue": "0x55FFFF",
-        "sunlight": true
-      },
-      {
-        "capabilities": ["COLOR"],
-        "type": "color",
-        "messageKey": "COLOR_VALUES",
-        "label": "Values (time, data)",
-        "defaultValue": "0xFFFFFF",
-        "sunlight": true
-      },
-      {
-        "capabilities": ["COLOR"],
-        "type": "color",
-        "messageKey": "COLOR_HIGHLIGHTS",
-        "label": "Highlights (ETA, battery)",
-        "defaultValue": "0xFFFF00",
-        "sunlight": true
-      }
-    ]
-  },
+  // ── Color Theme removed: single Night Sky palette ─────────────────────────
+  // {
+  //   "type": "section",
+  //   "items": [
+  //     { "type": "heading", "defaultValue": "Color Theme" },
+  //     { "type": "select", "messageKey": "COLOR_THEME", ... },
+  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_BACKGROUND", ... },
+  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_ACCENT", ... },
+  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_VALUES", ... },
+  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_HIGHLIGHTS", ... }
+  //   ]
+  // },
 
   {
     "type": "submit",

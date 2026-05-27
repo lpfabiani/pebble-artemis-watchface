@@ -7,7 +7,7 @@
 // ─── Persistent storage ───────────────────────────────────────────────────────
 #define SETTINGS_KEY     1
 #define ARTEMIS_KEY      2
-#define SETTINGS_VERSION 2  // bump when struct changes to force reset
+#define SETTINGS_VERSION 3  // bump when struct changes to force reset
 
 // ─── Mission constants ────────────────────────────────────────────────────────
 #define LAUNCH_EPOCH       ((time_t)1775082900)  // Apr 1 2026 22:35 UTC
@@ -70,35 +70,95 @@ static const char *FIELD_LABELS[FIELD_COUNT] = {
   "G-FORCE", "ALTITUDE", "PERIAPSIS", "APOAPSIS", "SIGNAL", "STATION", "DOWNLINK"
 };
 
+// ─── Night Sky palette ────────────────────────────────────────────────────────
+// Single fixed theme. All render code uses these constants — no inline colors.
+#ifdef PBL_COLOR
+  #define ARTEMIS_COLOR_SKY    GColorBlack        // top of gradient
+  #define ARTEMIS_COLOR_SKY_HORIZON   GColorDukeBlue     // bottom of gradient (#000055)
+  #define ARTEMIS_COLOR_SKY_STARS     GColorWhite
+  #define ARTEMIS_COLOR_VALUES  GColorWhite        // time, data values
+  #define ARTEMIS_COLOR_ACCENT  GColorVividCerulean   // Artemis logo blue (#0055AA); labels, lines, next-event ETA
+  #define ARTEMIS_COLOR_TIME    GColorBlack
+  #define ARTEMIS_COLOR_DATE    GColorWhite    // Artemis logo red (#FF0000)
+#else
+  #define ARTEMIS_COLOR_SKY    GColorBlack
+  #define ARTEMIS_COLOR_SKY_HORIZON   GColorBlack
+  #define ARTEMIS_COLOR_SKY_STARS     GColorWhite
+  #define ARTEMIS_COLOR_VALUES  GColorWhite
+  #define ARTEMIS_COLOR_ACCENT  GColorWhite
+  #define ARTEMIS_COLOR_TIME    GColorBlack
+  #define ARTEMIS_COLOR_DATE    GColorBlack
+#endif
+
+/* ── Color theme enum removed: single Night Sky palette replaces all themes ──
 #ifdef PBL_COLOR
 typedef enum {
-    COLOR_MODE_BW_DARK = 0,    // B&W Dark — Black bg, White text (for reference/testing)
-    COLOR_MODE_BW_CLEAR = 1,    // B&W Clear — White bg, Dark text (for reference/testing)
-    COLOR_MODE_SPACE = 2,      // Space (default) — Black bg, Cyan accent
-    COLOR_MODE_DARK = 3,       // Dark — Dark navy bg, Blue accent
-    COLOR_MODE_CLEAR = 4,      // Clear — White bg, Navy accent
-    COLOR_MODE_NASA = 5,       // NASA — Dark blue bg, Orange accent
-    COLOR_MODE_CUSTOM = 6      // Custom — User-selected colors
+    COLOR_MODE_BW_DARK = 0,
+    COLOR_MODE_BW_CLEAR = 1,
+    COLOR_MODE_SPACE = 2,
+    COLOR_MODE_DARK = 3,
+    COLOR_MODE_CLEAR = 4,
+    COLOR_MODE_NASA = 5,
+    COLOR_MODE_CUSTOM = 6
 } ColorMode;
 #define DEFAULT_COLOR_THEME      COLOR_MODE_BW_DARK
-
 #else
-
 typedef enum {
-  // On B&W devices: themes map to two variants
-    COLOR_MODE_BW_DARK = 0,       // Dark
-    COLOR_MODE_BW_CLEAR = 1,    // B&W Clear — White bg, Dark text (for reference/testing)
+    COLOR_MODE_BW_DARK = 0,
+    COLOR_MODE_BW_CLEAR = 1,
 } ColorMode;
 #define DEFAULT_COLOR_THEME      COLOR_MODE_BW_DARK
 #endif
+── */
+
+// --- FONTS
+#if defined(PBL_PLATFORM_GABBRO) // Pebble Round 2 - Round big
+  #define FONT_TIME  RESOURCE_ID_FONT_ARTEMIS_56
+  #define FONT_DATE  RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_LABEL RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_TIME_H  56
+  #define FONT_DATE_H  25
+  #define FONT_LABEL_H 25
+#elif defined(PBL_PLATFORM_EMERY)  // Pebble Time 2 - Square big
+  #define FONT_TIME  RESOURCE_ID_FONT_ARTEMIS_50
+  #define FONT_DATE  RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_LABEL RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_TIME_H  50
+  #define FONT_DATE_H  25
+  #define FONT_LABEL_H 25
+#elif defined(PBL_PLATFORM_CHALK) // Pebble Round - Round small
+  #define FONT_TIME  RESOURCE_ID_FONT_ARTEMIS_40
+  #define FONT_DATE  RESOURCE_ID_FONT_ARTEMIS_18
+  #define FONT_LABEL RESOURCE_ID_FONT_ARTEMIS_18
+  #define FONT_TIME_H  40
+  #define FONT_DATE_H  18
+  #define FONT_LABEL_H 18
+#else  // Basalt, Aplite - Square mall
+  #define FONT_TIME  RESOURCE_ID_FONT_ARTEMIS_40
+  #define FONT_DATE  RESOURCE_ID_FONT_ARTEMIS_18
+  #define FONT_LABEL RESOURCE_ID_FONT_ARTEMIS_18
+  #define FONT_TIME_H  48
+  #define FONT_DATE_H  18
+  #define FONT_LABEL_H 18
+#endif
+
+
+#ifdef PBL_COLOR
+  #define LOGO_RESOURCE RESOURCE_ID_IMAGE_ARTEMIS_LOGO_COLOR
+#else
+  #define LOGO_RESOURCE RESOURCE_ID_IMAGE_ARTEMIS_LOGO_BW_WHITE
+#endif
+
 
 // ─── Default settings ─────────────────────────────────────────────────────────
 #define DEFAULT_UPDATE_INTERVAL  30
 #define DEFAULT_USE_MILES        false
+/* ── Color defaults removed: single Night Sky palette ──
 #define DEFAULT_COLOR_BACKGROUND 0x000000
 #define DEFAULT_COLOR_ACCENT     0x55FFFF
 #define DEFAULT_COLOR_VALUES     0xFFFFFF
 #define DEFAULT_COLOR_HIGHLIGHTS 0xFFFF00
+── */
 #define DEFAULT_VIBRATE_EVENTS   true
 
 // Default slot assignments (platform-specific)
@@ -128,11 +188,13 @@ typedef struct {
   int32_t  update_interval_min;
   bool     use_miles;
   uint8_t  slots[MAX_SLOTS];
+  /* ── Color theme fields removed: single Night Sky palette ──
   uint8_t  color_theme;
   uint32_t color_background;
   uint32_t color_accent;
   uint32_t color_values;
   uint32_t color_highlights;
+  ── */
   bool     vibrate_events;
 } ArtemisSettings;
 

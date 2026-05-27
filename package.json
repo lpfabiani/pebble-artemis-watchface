@@ -1,7 +1,7 @@
 {
   "name": "artemis-missions",
   "author": "LP Fabiani",
-  "version": "1.2.0",
+  "version": "1.9.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
@@ -12,7 +12,7 @@
     "uuid": "4ad49ae5-3435-4c88-807b-17a31a56e8ce",
     "sdkVersion": "3",
     "enableMultiJS": true,
-    "targetPlatforms": ["emery", "basalt", "aplite", "chalk", "gabbro"],
+    "targetPlatforms": ["aplite", "basalt", "chalk", "emery", "gabbro"],
     "watchapp": { "watchface": true },
     "capabilities": ["configurable"],
     "messageKeys": [
@@ -54,34 +54,40 @@
     "resources": {
       "media": [
         {
+          "menuIcon": true,
+          "type": "bitmap",
+          "name": "IMAGE_MENU_ICON",
+          "file": "artemis icon.png"
+        },
+        {
           "type": "raw",
-          "name": "IMAGE_ARTEMIS_LOGO_BLACK",
+          "name": "IMAGE_ARTEMIS_LOGO_BW_BLACK",
           "file": "Artemis Logo Black - Prepared.pdc"
         },
         {
           "type": "raw",
-          "name": "IMAGE_ARTEMIS_LOGO_WHITE",
+          "name": "IMAGE_ARTEMIS_LOGO_BW_WHITE",
           "file": "Artemis Logo White - Prepared.pdc"
         },
         {
           "type": "raw",
-          "name": "IMAGE_ARTEMIS_LOGO_DARK",
+          "name": "IMAGE_ARTEMIS_LOGO_COLOR",
           "file": "Artemis Logo Dark - Prepared.pdc"
         },
         {
-          "type": "raw",
-          "name": "IMAGE_ARTEMIS_LOGO_CLEAR",
-          "file": "Artemis Logo Clear - Prepared.pdc"
+          "type": "bitmap",
+          "name": "IMAGE_MOON_BW",
+          "file": "moon-140_60_bw.png"
         },
         {
           "type": "bitmap",
-          "name": "IMAGE_ARTEMIS_NAME_DARK",
-          "file": "Artemis Name Dark.png"
+          "name": "IMAGE_MOON_COLOR_SMALL",
+          "file": "moon-140_60_color.png"
         },
         {
           "type": "bitmap",
-          "name": "IMAGE_ARTEMIS_NAME_CLEAR",
-          "file": "Artemis Name Clear.png"
+          "name": "IMAGE_MOON_COLOR",
+          "file": "moon-200_90_color.png"
         },
         {
           "type": "font",
@@ -103,9 +109,21 @@
         },
         {
           "type": "font",
-          "name": "FONT_ARTEMIS_36",
+          "name": "FONT_ARTEMIS_40",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[\\x20-\\x7E]"
+          "characterRegex": "[0-9: AMPamp]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_50",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[0-9: AMPamp]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_ARTEMIS_56",
+          "file": "Artemis_Inter_041621.ttf",
+          "characterRegex": "[0-9: AMPamp]"
         }
       ]
     }

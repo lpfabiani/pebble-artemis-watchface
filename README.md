@@ -1,9 +1,58 @@
 # Artemis II Watchface
 
-A Pebble watchface for the NASA Artemis II mission. Shows live telemetry data fetched from the [artemis.cdnspace.ca](https://artemis.cdnspace.ca) API, with configurable data fields, color themes, and special event alerts during the lunar flyby.
+A Pebble watchface for the NASA Artemis II mission. Shows live telemetry data fetched from the [artemis.cdnspace.ca](https://artemis.cdnspace.ca) API, with configurable data fields and special event alerts during the lunar flyby.
 
-**Version:** 1.2  
+**Version:** 2.0.alpha1  
 **Download:** [Pebble App Store](https://apps.repebble.com/71a8d7de19f04fdca2eb2c43)
+
+---
+
+## What's New in v2.0
+
+### Night Sky redesign
+The layout is completely redesigned around a fixed 60/40 vertical split:
+
+- **Top zone (60%)** — data slots, Artemis logo (mission complete), event banners. No battery bar, no header.
+- **Bottom zone (40%)** — real moon photo with time and date overlaid. Always visible.
+- **Night sky background** — solid black with ~24 stars scattered across the screen, scaled to each platform.
+
+### Single fixed color palette
+Color theme selection has been removed. All screens now use the Night Sky palette:
+
+| Role | Color |
+|------|-------|
+| Background / sky | Black |
+| Time, data values | White |
+| Labels, lines, next-event ETA | Artemis blue (#0055AA) |
+| Date | Artemis red (#FF0000) |
+| Moon image tint | Light gray (B&W) / photo (color) |
+
+### Moon photo
+A real Artemis II moon photo is displayed in the bottom zone, centered and clipped to fit:
+
+| Platform | Asset |
+|----------|-------|
+| Aplite (B&W) | `moon-140_60_bw.png` |
+| Basalt, Chalk, Emery, Gabbro | `moon-200_90_color.png` |
+
+### App icon
+A dedicated launcher icon (`artemis icon.png`) is now included and shown in the Pebble watch menu.
+
+### Platform-optimized fonts
+Fonts are now loaded per-platform rather than all at once, reducing RAM usage:
+
+| Platform | Time font | Date & label font |
+|----------|-----------|-------------------|
+| Emery, Gabbro | Artemis 52 | Artemis 18 |
+| Chalk | Artemis 36 | Artemis 18 |
+| Basalt, Aplite | Artemis 36 | Artemis 14 |
+
+`FONT_ARTEMIS_24` and `FONT_ARTEMIS_42` are no longer bundled.
+
+### Removed
+- Battery bar
+- "ARTEMIS II" header
+- Color theme selector (6 themes + custom colors)
 
 ---
 
@@ -13,9 +62,8 @@ A Pebble watchface for the NASA Artemis II mission. Shows live telemetry data fe
 - **Mission Elapsed Time** — calculated locally, updates every minute without API calls
 - **Mission Phase** — current flight phase (Trans-Lunar, Lunar Orbit, etc.)
 - **Next Milestone** — name and countdown to the next mission event
-- **Special event banners** — full-screen alerts during the lunar flyby (Moon observation, closest approach, signal blackout, signal restored), shown for 5 minutes each with optional vibration
+- **Special event banners** — full-screen alerts during key moments, shown for 5 minutes each with optional vibration
 - **6 configurable data slots** — choose what to display in each position
-- **6 color themes** — Space, Dark, Clear, B&W, NASA, and fully custom
 - **5 Pebble platforms** — Emery, Basalt, Aplite, Chalk, Gabbro
 
 ---
@@ -65,32 +113,7 @@ Choose what to display in each of the 6 positions (5 on smaller/round screens). 
 ### Data Updates
 - **Update Interval** — how often to fetch fresh data from the API (15, 30, or 60 minutes)
 - **Use Miles** — display distances and speeds in imperial units
-- **Vibrate on special events** — vibrate when a lunar flyby event banner appears
-
-### Color Theme
-- **Space** (default) — black background, cyan accents, white values
-- **Dark** — dark navy, blue accents
-- **Clear** — white background, dark blue accents
-- **B&W** — pure black and white
-- **NASA** — dark navy with gold accents
-- **Custom** — pick your own background, accent, value, and highlight colors
-
-Color settings are not available on B&W watches (Aplite).
-
----
-
-## Special Events — Lunar Flyby (Apr 6–7, 2026)
-
-The watchface shows a full-screen banner for 5 minutes at each of these moments:
-
-| Time (UTC) | Event |
-|------------|-------|
-| Apr 6, 18:45 | Moon Observation Begins |
-| Apr 6, 22:47 | Behind the Moon |
-| Apr 6, 23:02 | Closest to Moon |
-| Apr 6, 23:05 | Max Distance from Earth |
-| Apr 6, 23:27 | Signal Restored |
-| Apr 7, 01:20 | Moon Observation Ends |
+- **Vibrate on special events** — vibrate when an event banner appears
 
 ---
 
@@ -109,8 +132,10 @@ pebble install --emulator emery
 ```
 src/
   c/main.c          — watchface C code
+  c/artemis_config.h — constants, palette, settings structs
   pkjs/index.js     — phone-side JS, fetches API data
   pkjs/config.js    — Clay configuration page definition
+resources/          — fonts, PDC logos, moon images, app icon
 package.json        — SDK manifest and message keys
 wscript             — build script
 ```
