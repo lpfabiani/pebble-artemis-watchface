@@ -18,13 +18,22 @@
 #pragma once
 #include <pebble.h>
 
+// Uncoment to set date and time for the Artemis II launch.
+//#define DEMO_MODE
+
 // ─── Debug logging ────────────────────────────────────────────────────────────
-#define DEBUG_ENABLED 1  // set to 0 to disable APP_LOG debug output
+//#define DEBUG_ENABLED  // comment to disable APP_LOG debug output
+
+#ifdef DEBUG_ENABLED
+  #define ARTEMIS_LOG APP_LOG
+#else
+  #define ARTEMIS_LOG(lvl, fmt, ...)
+#endif
 
 // ─── Persistent storage ───────────────────────────────────────────────────────
 #define SETTINGS_KEY     1
 #define ARTEMIS_KEY      2
-#define SETTINGS_VERSION 3  // bump when struct layout changes to force reset
+#define SETTINGS_VERSION 4  // bump when struct layout changes to force reset
 
 // ─── Platform slot count ──────────────────────────────────────────────────────
 #define MAX_SLOTS 6
@@ -33,6 +42,15 @@
 #else
   #define NUM_SLOTS 6
 #endif
+
+// ─── Display modes ────────────────────────────────────────────────────────────
+// Owned by main.c as a private static. Declared here so artemis_update_display()
+// and artemis_apply_shake_setting() prototypes are self-documenting.
+typedef enum {
+  DISPLAY_LOGO  = 0,   // default — logo visible, bottom zone normal
+  DISPLAY_EVENT = 1,   // special event active — event banner visible
+  DISPLAY_INFO  = 2,   // after shake — info slots visible, bottom zone hidden
+} DisplayMode;
 
 // ─── Field types ──────────────────────────────────────────────────────────────
 typedef enum {
@@ -61,6 +79,7 @@ typedef enum {
   #define ARTEMIS_COLOR_SKY_STARS    GColorWhite
   #define ARTEMIS_COLOR_VALUES       GColorWhite
   #define ARTEMIS_COLOR_ACCENT       GColorVividCerulean // #0055AA — labels, lines, next-event ETA
+  // Color screens show a color gradient in the moon, so the date is more visible on white
   #define ARTEMIS_COLOR_TIME         GColorBlack
   #define ARTEMIS_COLOR_DATE         GColorWhite
 #else
@@ -69,6 +88,7 @@ typedef enum {
   #define ARTEMIS_COLOR_SKY_STARS    GColorWhite
   #define ARTEMIS_COLOR_VALUES       GColorWhite
   #define ARTEMIS_COLOR_ACCENT       GColorWhite
+  // Date and time are against a full-white moon
   #define ARTEMIS_COLOR_TIME         GColorBlack
   #define ARTEMIS_COLOR_DATE         GColorBlack
 #endif
@@ -77,31 +97,31 @@ typedef enum {
 #if defined(PBL_PLATFORM_GABBRO)   // Round 2 — large round
   #define FONT_TIME    RESOURCE_ID_FONT_ARTEMIS_56
   #define FONT_DATE    RESOURCE_ID_FONT_ARTEMIS_24
-  #define FONT_LABEL   RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_EVENT   RESOURCE_ID_FONT_ARTEMIS_18
   #define FONT_TIME_H  56
-  #define FONT_DATE_H  25
-  #define FONT_LABEL_H 25
+  #define FONT_DATE_H  24
+  #define FONT_EVENT_H 18
 #elif defined(PBL_PLATFORM_EMERY)  // Time 2 — large square
   #define FONT_TIME    RESOURCE_ID_FONT_ARTEMIS_50
   #define FONT_DATE    RESOURCE_ID_FONT_ARTEMIS_24
-  #define FONT_LABEL   RESOURCE_ID_FONT_ARTEMIS_24
+  #define FONT_EVENT   RESOURCE_ID_FONT_ARTEMIS_18
   #define FONT_TIME_H  50
-  #define FONT_DATE_H  25
-  #define FONT_LABEL_H 25
+  #define FONT_DATE_H  24
+  #define FONT_EVENT_H 18
 #elif defined(PBL_PLATFORM_CHALK)  // Round — small round
   #define FONT_TIME    RESOURCE_ID_FONT_ARTEMIS_40
   #define FONT_DATE    RESOURCE_ID_FONT_ARTEMIS_18
-  #define FONT_LABEL   RESOURCE_ID_FONT_ARTEMIS_18
+  #define FONT_EVENT   RESOURCE_ID_FONT_ARTEMIS_14
   #define FONT_TIME_H  40
   #define FONT_DATE_H  18
-  #define FONT_LABEL_H 18
+  #define FONT_EVENT_H 14
 #else                               // Basalt, Aplite — small square
   #define FONT_TIME    RESOURCE_ID_FONT_ARTEMIS_40
   #define FONT_DATE    RESOURCE_ID_FONT_ARTEMIS_18
-  #define FONT_LABEL   RESOURCE_ID_FONT_ARTEMIS_18
-  #define FONT_TIME_H  48
+  #define FONT_EVENT   RESOURCE_ID_FONT_ARTEMIS_14
+  #define FONT_TIME_H  40
   #define FONT_DATE_H  18
-  #define FONT_LABEL_H 18
+  #define FONT_EVENT_H 14
 #endif
 
 // ─── Data structs ─────────────────────────────────────────────────────────────
@@ -111,6 +131,8 @@ typedef struct {
   bool     use_miles;
   uint8_t  slots[MAX_SLOTS];
   bool     vibrate_events;
+  bool     info_on_shake;    // show info slots when watch is tapped/shaken
+  uint8_t  info_display_s;  // seconds to keep info visible after shake (5–60)
 } ArtemisSettings;
 
 #define MAX_UPCOMING 5
@@ -138,6 +160,10 @@ typedef struct {
   UpcomingMilestone upcoming[MAX_UPCOMING];
 } ArtemisData;
 
+// ─── Mission timing ───────────────────────────────────────────────────────────
+#define LAUNCH_EPOCH       ((time_t)1775082900)  // Apr 1 2026 22:35 UTC
+#define MISSION_END_HOURS  229
+
 // ─── Shared globals — defined in main.c ──────────────────────────────────────
 extern ArtemisSettings s_settings;
 extern ArtemisData     s_artemis;
@@ -146,16 +172,21 @@ extern int             s_root_w, s_root_h;
 extern int             s_split_y;
 extern GFont           s_font_time;
 extern GFont           s_font_date;
-extern GFont           s_font_label;
-
-// ─── Shared globals — defined in artemis_info.c ──────────────────────────────
-extern int s_active_slots[MAX_SLOTS];
-extern int s_num_active;
+extern GFont           s_font_event;
 
 // ─── Geometry helper — defined in main.c ─────────────────────────────────────
 // Returns the top-zone rectangle used by the logo and event overlay.
-void overlay_geometry(int w, int h, int *out_top, int *out_h);
+void overlay_geometry(int *out_top, int *out_h);
 
 // ─── Display orchestration — defined in main.c ───────────────────────────────
-// Calls artemis_info_refresh() and shows/hides the logo accordingly.
+// Runs the LOGO / EVENT / INFO state machine and shows/hides layers accordingly.
 void artemis_update_display(void);
+
+// Re-subscribe or unsubscribe from AccelTapService based on s_settings.info_on_shake.
+// Call after loading or changing the setting. Defined in main.c.
+void artemis_apply_shake_setting(void);
+
+// ─── Layer helper ────────────────────────────────────────────────────────────
+TextLayer *artemis_make_text_layer(Layer *root, GRect r, GColor col,
+                                 GFont font, GTextAlignment align);
+

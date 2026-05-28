@@ -15,8 +15,12 @@ var TIMELINE_URL  = 'https://artemis.cdnspace.ca/api/timeline';
 // Throttle: don't re-fetch if we fetched in last 5 minutes
 var THROTTLE_MS = 5 * 60 * 1000;
 
-// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match artemis_config.h MISSION_END_HOURS)
-var MISSION_END_MS = 1775082900000 + 229 * 60 * 60 * 1000;
+// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match MISSION_END_HOURS in artemis.h)
+var MAX_UPCOMING = 5;
+
+// For Artemis II
+var LAUNCH_EPOCH_MS = 1775082900000;  // Apr 1 2026 22:35 UTC in ms
+var MISSION_END_MS = LAUNCH_EPOCH_MS + 229 * 60 * 60 * 1000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function xhrRequest(url, callback, errorCallback) {
@@ -57,8 +61,6 @@ function getNextMilestone(milestones, metMs) {
 }
 
 // Returns the next N milestones after metMs, sorted by ascending metMs.
-var MAX_UPCOMING = 5;
-var LAUNCH_EPOCH_MS = 1775082900000;  // Apr 1 2026 22:35 UTC in ms
 function getUpcomingMilestones(milestones, metMs) {
   if (!milestones || milestones.length === 0) return [];
   var upcoming = [];

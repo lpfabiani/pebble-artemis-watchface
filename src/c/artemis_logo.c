@@ -37,11 +37,11 @@ static void logo_update_proc(Layer *layer, GContext *ctx) {
 // theme. Creates the layer the first time it is called; subsequent calls
 // release the old PDC, load the correct variant, rescale, and reposition
 // the existing layer.
-static void prv_setup_logo(void) {
+static void prv_setup_logo(Layer *s_root_layer) {
   if (!s_root_layer) return;
 
   int top_zone_y, top_zone_h;
-  overlay_geometry(s_root_w, s_root_h, &top_zone_y, &top_zone_h);
+  overlay_geometry(&top_zone_y, &top_zone_h);
 
   // Release any previously loaded PDC — scaling is destructive in-place.
   if (s_logo_pdc) {
@@ -60,7 +60,7 @@ static void prv_setup_logo(void) {
 
   if (s_logo_pdc) {
     GSize pdc_original_size = gdraw_command_image_get_bounds_size(s_logo_pdc);
-    APP_LOG(APP_LOG_LEVEL_INFO, "LOGO: pdc_original_size.w (%d), pdc_original_size.h (%d)", pdc_original_size.w, pdc_original_size.h);
+    ARTEMIS_LOG(APP_LOG_LEVEL_INFO, "LOGO: pdc_original_size.w (%d), pdc_original_size.h (%d)", pdc_original_size.w, pdc_original_size.h);
     if (pdc_original_size.w > 0 && pdc_original_size.h > 0) {
       // Scale to fit max_logo_side on the longer axis, preserving aspect ratio.
       int logo_w = max_logo_side, logo_h = max_logo_side;
@@ -170,8 +170,7 @@ static void prv_scale_pdc_image(GDrawCommandImage *img, GSize target) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 void artemis_logo_create(Layer *root) {
-  (void)root;  // prv_setup_logo uses s_root_layer from artemis.h
-  prv_setup_logo();
+  prv_setup_logo(root);
 }
 
 void artemis_logo_destroy(void) {
@@ -187,6 +186,9 @@ void artemis_logo_hide(void) {
   if (s_logo_layer) layer_set_hidden(s_logo_layer, true);
 }
 
+// - Never used
+/*
 void artemis_logo_refresh(void) {
   if (s_logo_layer) layer_mark_dirty(s_logo_layer);
 }
+*/

@@ -22,5 +22,6 @@ void artemis_logo_destroy(void);
 void artemis_logo_show(void);
 void artemis_logo_hide(void);
 
+// -- Never used
 // Mark the logo layer dirty (redraws PDC on next render cycle).
-void artemis_logo_refresh(void);
+//void artemis_logo_refresh(void);

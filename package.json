@@ -1,7 +1,7 @@
 {
   "name": "artemis-missions",
   "author": "LP Fabiani",
-  "version": "1.9.0",
+  "version": "2.1.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
@@ -45,6 +45,8 @@
       "COLOR_HIGHLIGHTS",
       "COLOR_THEME",
       "VIBRATE_EVENTS",
+      "INFO_ON_SHAKE",
+      "INFO_DISPLAY_S",
       "ARTEMIS_MS0_NAME", "ARTEMIS_MS0_EPOCH",
       "ARTEMIS_MS1_NAME", "ARTEMIS_MS1_EPOCH",
       "ARTEMIS_MS2_NAME", "ARTEMIS_MS2_EPOCH",
@@ -62,38 +64,39 @@
         {
           "type": "raw",
           "name": "IMAGE_ARTEMIS_LOGO_BW_BLACK",
-          "file": "Artemis Logo Black - Prepared.pdc"
+          "file": "Artemis Logo Black - Prepared.pdc",
+          "targetPlatforms": []
         },
         {
           "type": "raw",
           "name": "IMAGE_ARTEMIS_LOGO_BW_WHITE",
-          "file": "Artemis Logo White - Prepared.pdc"
+          "file": "Artemis Logo White - Prepared.pdc",
+          "targetPlatforms": ["aplite"]
         },
         {
           "type": "raw",
           "name": "IMAGE_ARTEMIS_LOGO_COLOR",
-          "file": "Artemis Logo Dark - Prepared.pdc"
+          "file": "Artemis Logo Dark - Prepared.pdc",
+          "targetPlatforms": ["basalt", "chalk", "emery", "gabbro"]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_MOON_BW",
-          "file": "moon-140_60_bw.png"
-        },
-        {
-          "type": "bitmap",
-          "name": "IMAGE_MOON_COLOR_SMALL",
-          "file": "moon-140_60_color.png"
+          "file": "moon-140_60_bw.png",
+          "targetPlatforms": ["aplite"]
         },
         {
           "type": "bitmap",
           "name": "IMAGE_MOON_COLOR",
-          "file": "moon-200_90_color.png"
+          "file": "moon-200_90_color.png",
+          "targetPlatforms": ["basalt", "chalk", "emery", "gabbro"]
         },
         {
           "type": "font",
           "name": "FONT_ARTEMIS_14",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[\\x20-\\x7E]"
+          "characterRegex": "[\\x20-\\x7E]",
+          "targetPlatforms": ["aplite", "basalt", "chalk"]
         },
         {
           "type": "font",
@@ -105,25 +108,29 @@
           "type": "font",
           "name": "FONT_ARTEMIS_24",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[\\x20-\\x7E]"
+          "characterRegex": "[\\x20-\\x7E]",
+          "targetPlatforms": ["emery", "gabbro"]
         },
         {
           "type": "font",
           "name": "FONT_ARTEMIS_40",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[0-9: AMPamp]"
+          "characterRegex": "[0-9: AMPamp]",
+          "targetPlatforms": ["aplite", "basalt", "chalk"]
         },
         {
           "type": "font",
           "name": "FONT_ARTEMIS_50",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[0-9: AMPamp]"
+          "characterRegex": "[0-9: AMPamp]",
+          "targetPlatforms": ["emery"]
         },
         {
           "type": "font",
           "name": "FONT_ARTEMIS_56",
           "file": "Artemis_Inter_041621.ttf",
-          "characterRegex": "[0-9: AMPamp]"
+          "characterRegex": "[0-9: AMPamp]",
+          "targetPlatforms": ["gabbro"]
         }
       ]
     }

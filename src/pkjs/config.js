@@ -1,53 +1,53 @@
-  // ─── Platform detection ───────────────────────────────────────────────────────
-  var isColor = true;  // default: assume color if detection unavailable
-  try {
-    if (typeof Pebble !== 'undefined' && typeof Pebble.getActiveWatchInfo === 'function') {
-      var watchInfo = Pebble.getActiveWatchInfo();
-      if (watchInfo && watchInfo.platform) {
-        isColor = ['basalt', 'chalk', 'emery'].indexOf(watchInfo.platform) !== -1;
-      }
-    }
-  } catch (e) {
-    // Older SDK — fall back to color defaults
-  }
-
 var fieldOptions = [
-  { label: "None",                  value: "0"  },
-  { label: "Mission Elapsed Time",  value: "1"  },
-  { label: "Spacecraft Speed",      value: "2"  },
-  { label: "Distance to Earth",     value: "3"  },
-  { label: "Distance to Moon",      value: "4"  },
-  { label: "Mission Phase",         value: "5"  },
-  { label: "Next Event",            value: "6"  },
-  { label: "Crew G-Force",          value: "7"  },
-  { label: "Altitude",              value: "8"  },
-  { label: "Closest Orbital Point", value: "9"  },
-  { label: "Farthest Orbital Point",value: "10" },
-  { label: "Signal Delay",          value: "11" },
-  { label: "Tracking Station",      value: "12" },
-  { label: "Downlink Rate",         value: "13" }
+  { label: "None",                   value: "0"  },
+  { label: "Mission Elapsed Time",   value: "1"  },
+  { label: "Spacecraft Speed",       value: "2"  },
+  { label: "Distance to Earth",      value: "3"  },
+  { label: "Distance to Moon",       value: "4"  },
+  { label: "Mission Phase",          value: "5"  },
+  { label: "Next Event",             value: "6"  },
+  { label: "Crew G-Force",           value: "7"  },
+  { label: "Altitude",               value: "8"  },
+  { label: "Closest Orbital Point",  value: "9"  },
+  { label: "Farthest Orbital Point", value: "10" },
+  { label: "Signal Delay",           value: "11" },
+  { label: "Tracking Station",       value: "12" },
+  { label: "Downlink Rate",          value: "13" }
 ];
-
-// This must be aligned with artemis_config.h
-var themeOptions = isColor  // kept for reference; Color Theme section is removed from UI
-    ? [
-        { label: "B&W Dark",        value: "0" },
-        { label: "B&W Clear",       value: "1" },
-        { label: "Space (default)", value: "2" },
-        { label: "Dark",            value: "3" },
-        { label: "Clear",           value: "4" },
-        { label: "NASA",            value: "5" },
-        { label: "Custom",          value: "6" }
-      ]
-    : [
-        { label: "Dark",  value: "0" },
-        { label: "Light", value: "1" }
-      ];
 
 module.exports = [
   {
     "type": "heading",
     "defaultValue": "Artemis II Settings"
+  },
+
+  // ── Watch Behaviour ────────────────────────────────────────────────────────
+  {
+    "type": "section",
+    "items": [
+      {
+        "type": "heading",
+        "defaultValue": "Watch Behaviour"
+      },
+      {
+        "type": "toggle",
+        "messageKey": "INFO_ON_SHAKE",
+        "label": "Show mission info on shake",
+        "defaultValue": true
+      },
+      {
+        "type": "select",
+        "messageKey": "INFO_DISPLAY_S",
+        "label": "Info display duration",
+        "defaultValue": "10",
+        "options": [
+          { "label": "10 seconds", "value": "10" },
+          { "label": "20 seconds", "value": "20" },
+          { "label": "30 seconds", "value": "30" },
+          { "label": "60 seconds", "value": "60" }
+        ]
+      }
+    ]
   },
 
   // ── Field Layout ───────────────────────────────────────────────────────────
@@ -149,19 +149,6 @@ module.exports = [
       }
     ]
   },
-
-  // ── Color Theme removed: single Night Sky palette ─────────────────────────
-  // {
-  //   "type": "section",
-  //   "items": [
-  //     { "type": "heading", "defaultValue": "Color Theme" },
-  //     { "type": "select", "messageKey": "COLOR_THEME", ... },
-  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_BACKGROUND", ... },
-  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_ACCENT", ... },
-  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_VALUES", ... },
-  //     { "capabilities": ["COLOR"], "type": "color", "messageKey": "COLOR_HIGHLIGHTS", ... }
-  //   ]
-  // },
 
   {
     "type": "submit",
