@@ -20,6 +20,8 @@ static BitmapLayer *s_moon_bitmap_layer = NULL;
 static GBitmap     *s_moon_bitmap       = NULL;
 static TextLayer   *s_time_layer        = NULL;
 static TextLayer   *s_date_layer        = NULL;
+static Layer       *s_satellite_layer   = NULL;
+static bool         s_bt_connected      = true;
 
 static char s_time_buf[10];  // "12:59 PM\0" = 9 chars in 12h; "23:59\0" = 6 in 24h
 static char s_date_buf[24];
@@ -28,15 +30,16 @@ static char s_date_buf[24];
 // Reference positions on a 144×168 grid — never modified.
 static const GPoint STARS_144[] = {
   // Main Orion stars
-  {60, 6},                              // Meissa (head)
-  {30,22}, {94,18},                     // Betelgeuse, Bellatrix (shoulders)
-  {48,44}, {64,47}, {80,44},            // Belt: Mintaka, Alnilam, Alnitak
-  {36,68}, {98,65},                     // Saiph, Rigel (feet)
+  {66, 5},                              // Meissa (head)
+  {46,21}, {100,17},                     // Betelgeuse, Bellatrix (shoulders)
+  {54,43}, {70,46}, {86,43},            // Belt: Mintaka, Alnilam, Alnitak
+  {42,67}, {104,64},                     // Saiph, Rigel (feet)
   // Background fill
   {8,10},{118,8},{5,55},{135,35},
-  {20,85},{130,80},{50,90},{105,90},
+  {20,85},{130,80},{50,90},{105,90},{80,59},
   {72,30},{25,40},{110,55},{145,65}
 };
+#define NUM_MAIN_STARS 8
 #define NUM_STARS ((int)(sizeof(STARS_144) / sizeof(STARS_144[0])))
 
 // Scaled to screen coordinates in artemis_clock_create(); safe across destroy/create cycles.
@@ -50,7 +53,31 @@ static void sky_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, ARTEMIS_COLOR_SKY_STARS);
   graphics_context_set_stroke_width(ctx, 1);
   for (int i = 0; i < s_num_stars; i++)
-    graphics_draw_pixel(ctx, s_stars_scaled[i]);
+    if (i < NUM_MAIN_STARS) {
+      //graphics_fill_circle(ctx, s_stars_scaled[i], 2);
+      graphics_draw_pixel(ctx, s_stars_scaled[i]);
+      graphics_draw_pixel(ctx, GPoint (s_stars_scaled[i].x+1, s_stars_scaled[i].y));
+      graphics_draw_pixel(ctx, GPoint (s_stars_scaled[i].x-1, s_stars_scaled[i].y));
+      graphics_draw_pixel(ctx, GPoint (s_stars_scaled[i].x, s_stars_scaled[i].y+1));
+      graphics_draw_pixel(ctx, GPoint (s_stars_scaled[i].x, s_stars_scaled[i].y-1));
+    } else
+      graphics_draw_pixel(ctx, s_stars_scaled[i]);
+}
+
+// ─── Bluetooth satellite indicator ───────────────────────────────────────────
+// Three-box satellite shape in a 20×14 canvas (white=connected, red=disconnected).
+static void satellite_update_proc(Layer *layer, GContext *ctx) {
+  GRect bounds = layer_get_bounds(layer);
+  int cx = bounds.size.w / 2;
+#ifdef PBL_COLOR
+  GColor sat_color = s_bt_connected ? GColorBlack : GColorRed;
+#else
+  GColor sat_color = s_bt_connected ? GColorBlack : GColorWhite;
+#endif
+  graphics_context_set_fill_color(ctx, sat_color);
+  graphics_fill_rect(ctx, GRect(cx - 2, 2, 4, 10), 0, GCornerNone);  // body
+  graphics_fill_rect(ctx, GRect(1,      6, 6,  3),  0, GCornerNone);  // left panel
+  graphics_fill_rect(ctx, GRect(13,     6, 6,  3),  0, GCornerNone);  // right panel
 }
 
 // ─── Time & date ─────────────────────────────────────────────────────────────
@@ -109,6 +136,11 @@ static void prv_create_bottom_zone(Layer *root) {
     layer_add_child(s_time_area_layer, bitmap_layer_get_layer(s_moon_bitmap_layer));
   }
 
+  // Satellite BT indicator — top-right of container
+  s_satellite_layer = layer_create(GRect(w - 22, 2, 20, 14));
+  layer_set_update_proc(s_satellite_layer, satellite_update_proc);
+  layer_add_child(s_time_area_layer, s_satellite_layer);
+
   // Time + date block — vertically centred in the container (relative coords)
   static int block_h = FONT_TIME_H + FONT_DATE_H + 6;
   int block_y = (bottom_h - block_h) / 2;
@@ -144,6 +176,7 @@ void artemis_clock_create(Layer *root) {
 void artemis_clock_destroy(void) {
   if (s_time_layer)        { text_layer_destroy(s_time_layer);          s_time_layer = NULL; }
   if (s_date_layer)        { text_layer_destroy(s_date_layer);          s_date_layer = NULL; }
+  if (s_satellite_layer)   { layer_destroy(s_satellite_layer);          s_satellite_layer = NULL; }
   if (s_moon_bitmap_layer) { bitmap_layer_destroy(s_moon_bitmap_layer); s_moon_bitmap_layer = NULL; }
   if (s_moon_bitmap)       { gbitmap_destroy(s_moon_bitmap);            s_moon_bitmap = NULL; }
   if (s_time_area_layer)   { layer_destroy(s_time_area_layer);          s_time_area_layer = NULL; }
@@ -177,4 +210,9 @@ void artemis_clock_peek(int unobstructed_h) {
 
 void artemis_clock_refresh(struct tm *tick_time) {
   prv_update_time(tick_time);
+}
+
+void artemis_clock_set_bluetooth_status(bool connected) {
+  s_bt_connected = connected;
+  if (s_satellite_layer) layer_mark_dirty(s_satellite_layer);
 }

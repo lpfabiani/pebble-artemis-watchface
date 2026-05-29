@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.2] — 2026-05-29
+
+### Added
+- New options to "Show mission info": Touch, Shake, Both, Always and Never
+- Bluetooth disconnect indicator (satellite) and vibration
+
 ## [2.1] — 2026-05-28
 
 ### Added
@@ -113,3 +119,13 @@
 - 5-platform build: Emery, Basalt, Aplite, Chalk, Gabbro
 - Battery indicator (arc on round, bar on rectangular)
 - 30-minute data refresh with 5-minute throttle
+
+
+# Possible future improvements:
+
+- When Artemis III comes:
+  - Pre-launch countdown — when current time < LAUNCH_EPOCH, INFO shows a countdown ("T−3d 14h 22m") in the top zone instead of telemetry
+  - Post-mission commemorative screen — when mission_complete: DISPLAY_LOGO shows total mission stats (duration, max speed, max Earth distance) from stored ArtemisData
+  - Special icon for Artemis III mission.
+- Mission abstraction — extract all Artemis II–specific constants (LAUNCH_EPOCH, MISSION_END_HOURS, crew names, special events) into a single artemis_mission.c (the .h exists already); allows forking for Artemis III
+

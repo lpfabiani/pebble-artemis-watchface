@@ -452,15 +452,12 @@ static void prv_create_slots(void) {
 
   if (s_num_active == 0) return;
 
-  GRect bounds = layer_get_bounds(s_root_layer);
-  int w = bounds.size.w, h = bounds.size.h;
-
   int avail = s_split_y;
   int rh = avail / s_num_active;
 
   // Label column: fixed 40% of width, value gets the rest
-  int lw = w * 40 / 100;
-  int vx = lw + 4, vw = w - vx - 4;
+  int lw = s_root_w * 40 / 100;
+  int vx = lw + 4, vw = s_root_w - vx - 4;
 
   GFont label_font = s_font_event;
   GFont value_font = prv_select_font(rh, false, false);

@@ -54,9 +54,8 @@ static void prv_info_timer_callback(void *context) {
 }
 
 // ─── Shared info trigger ──────────────────────────────────────────────────────
-// Called by both the accel-tap (shake) and the SELECT-click (touch) handlers.
+// Called by the accel-tap and touch handlers after they verify their own setting.
 static void prv_show_info(void) {
-  if (!s_settings.info_on_shake) return;
   if (s_info_timer) app_timer_cancel(s_info_timer);
   uint32_t ms = (uint32_t)(s_settings.info_display_s > 0
                             ? s_settings.info_display_s : 10) * 1000;
@@ -67,33 +66,99 @@ static void prv_show_info(void) {
 
 // ─── Shake handler ────────────────────────────────────────────────────────────
 static void prv_tap_handler(AccelAxisType axis, int32_t direction) {
-  prv_show_info();
+  if (s_settings.info_trigger == INFO_TRIGGER_SHAKE || s_settings.info_trigger == INFO_TRIGGER_BOTH)
+    prv_show_info();
 }
 
 // ─── Touch handler (Rebble TouchService — runtime-guarded) ───────────────────
 static void prv_touch_handler(const TouchEvent *event, void *context) {
-  if (event->type == TouchEvent_Touchdown) prv_show_info();
+  if (event->type == TouchEvent_Touchdown &&
+    (s_settings.info_trigger == INFO_TRIGGER_TOUCH || s_settings.info_trigger == INFO_TRIGGER_BOTH))
+      prv_show_info();
+}
+
+// ─── Bluetooth handler ────────────────────────────────────────────────────────
+static void prv_bt_handler(bool connected) {
+  artemis_clock_set_bluetooth_status(connected);
+  if (!connected && s_settings.vibrate_bt_disconnect) {
+    static const uint32_t segments[] = {600, 200, 600};
+    VibePattern pattern = {.durations = segments, .num_segments = 3};
+    vibes_enqueue_custom_pattern(pattern);
+  }
 }
 
 // ─── Shake + touch subscription management ───────────────────────────────────
-void artemis_apply_shake_setting(void) {
+void artemis_apply_interaction_settings(void) {
+  // First unsubscribe
   accel_tap_service_unsubscribe();
-  if (touch_service_is_enabled()) touch_service_unsubscribe();
+  if (touch_service_is_enabled())
+    touch_service_unsubscribe();
 
-  if (s_settings.info_on_shake) {
-    accel_tap_service_subscribe(prv_tap_handler);
-    if (touch_service_is_enabled()) touch_service_subscribe(prv_touch_handler, NULL);
-  } else {
-    // Revert info mode immediately if it was active when shake was disabled
-    if (s_info_timer) { app_timer_cancel(s_info_timer); s_info_timer = NULL; }
-    if (s_display_mode == DISPLAY_INFO) {
-      s_display_mode = DISPLAY_LOGO;
-      artemis_update_display();
-    }
+  // Subscription to tap
+  switch (s_settings.info_trigger) {
+      case INFO_TRIGGER_SHAKE:
+        accel_tap_service_subscribe(prv_tap_handler);
+        break;
+      case INFO_TRIGGER_TOUCH:
+        if (touch_service_is_enabled())
+          touch_service_subscribe(prv_touch_handler, NULL);
+        break;
+      case INFO_TRIGGER_BOTH:
+        accel_tap_service_subscribe(prv_tap_handler);
+        if (touch_service_is_enabled())
+          touch_service_subscribe(prv_touch_handler, NULL);
+        break;
+      case INFO_TRIGGER_ALWAYS:
+        if (s_info_timer) { app_timer_cancel(s_info_timer); s_info_timer = NULL; }
+        artemis_update_display();
+        return;  // display already updated; don't fall through to the revert logic
+      case INFO_TRIGGER_NEVER:
+        break;
+  }
+
+  // For timed triggers (SHAKE/TOUCH/BOTH) and NEVER: cancel any running timer
+  // and revert to logo if currently in info mode.
+  if (s_info_timer) { app_timer_cancel(s_info_timer); s_info_timer = NULL; }
+  if (s_display_mode == DISPLAY_INFO) {
+    s_display_mode = DISPLAY_LOGO;
+    artemis_update_display();
   }
 }
 
 // ─── Display orchestration ────────────────────────────────────────────────────
+void artemis_show_display_elements(bool clock, bool logo, bool info, const char* event_text) {
+  if (clock)
+    artemis_clock_show();  // hidden only if peek is active (see prv_handle_peek)
+  else
+    artemis_clock_hide();  // hidden only if peek is active (see prv_handle_peek)
+
+  if (info && !event_text && s_artemis.mission_complete) 
+    event_text = "No Artemis mission\nongoing";
+
+  if (event_text) {
+    artemis_event_update(event_text);
+    artemis_event_show();
+    artemis_info_hide();
+    artemis_logo_hide();
+    return;
+  }
+  
+  if (info) {
+    artemis_info_refresh();
+    artemis_info_show();
+    artemis_event_hide();
+    artemis_logo_hide();
+    return;
+  } 
+  
+  // if (logo)
+  {
+    artemis_logo_show();
+    artemis_info_hide();
+    artemis_event_hide ();
+  }
+}
+
 void artemis_update_display(void) {
   // Always check for events — vibration fires on transition even in info mode
   const char *event_msg = artemis_event_check();
@@ -105,32 +170,20 @@ void artemis_update_display(void) {
 
   switch (s_display_mode) {
     case DISPLAY_LOGO:
-      artemis_logo_show();
-      artemis_event_hide();
-      artemis_info_hide();
-      artemis_clock_show();
+      if (s_settings.info_trigger == INFO_TRIGGER_ALWAYS) {
+        artemis_show_display_elements (true, false, true, NULL);
+      }
+      else {
+        artemis_show_display_elements (true, false, false, NULL);
+      }
       break;
 
     case DISPLAY_EVENT:
-      artemis_event_update(event_msg);
-      artemis_event_show();
-      artemis_logo_hide();
-      artemis_info_hide();
-      artemis_clock_show();
+      artemis_show_display_elements (true, false, false, event_msg);
       break;
 
     case DISPLAY_INFO:
-      artemis_logo_hide();
-      if (s_artemis.mission_complete) {
-        artemis_event_update("No Artemis mission\nongoing");
-        artemis_event_show();
-        artemis_info_hide();
-      } else {
-        artemis_info_refresh();
-        artemis_info_show();
-        artemis_event_hide();
-      }
-      artemis_clock_show();  // hidden only if peek is active (see prv_handle_peek)
+      artemis_show_display_elements (true, false, true, NULL);
       break;
   }
 }
@@ -138,8 +191,9 @@ void artemis_update_display(void) {
 // ─── Settings ─────────────────────────────────────────────────────────────────
 #define DEFAULT_UPDATE_INTERVAL  30
 #define DEFAULT_USE_MILES        false
-#define DEFAULT_VIBRATE_EVENTS   true
-#define DEFAULT_INFO_ON_SHAKE    true
+#define DEFAULT_VIBRATE_EVENTS         true
+#define DEFAULT_VIBRATE_BT_DISCONNECT  true
+#define DEFAULT_INFO_TRIGGER     INFO_TRIGGER_SHAKE
 #define DEFAULT_INFO_DISPLAY_S   10
 
 // Default slot assignments (platform-specific)
@@ -163,8 +217,9 @@ static void prv_default_settings(void) {
   s_settings.version             = SETTINGS_VERSION;
   s_settings.update_interval_min = DEFAULT_UPDATE_INTERVAL;
   s_settings.use_miles           = DEFAULT_USE_MILES;
-  s_settings.vibrate_events      = DEFAULT_VIBRATE_EVENTS;
-  s_settings.info_on_shake       = DEFAULT_INFO_ON_SHAKE;
+  s_settings.vibrate_events         = DEFAULT_VIBRATE_EVENTS;
+  s_settings.vibrate_bt_disconnect  = DEFAULT_VIBRATE_BT_DISCONNECT;
+  s_settings.info_trigger           = DEFAULT_INFO_TRIGGER;
   s_settings.info_display_s      = DEFAULT_INFO_DISPLAY_S;
   s_settings.slots[0] = DEFAULT_SLOT_0;
   s_settings.slots[1] = DEFAULT_SLOT_1;
@@ -329,8 +384,14 @@ static void init(void) {
   };
   unobstructed_area_service_subscribe(peek_handlers, NULL);
 
-  artemis_apply_shake_setting();  // subscribe to accel tap if enabled
+  artemis_apply_interaction_settings();  // subscribe to accel tap / touch if enabled
   artemis_comms_init();
+
+  bool initially_connected = connection_service_peek_pebble_app_connection();
+  artemis_clock_set_bluetooth_status(initially_connected);
+  connection_service_subscribe((ConnectionHandlers){
+    .pebble_app_connection_handler = prv_bt_handler,
+  });
 }
 
 static void deinit(void) {
@@ -338,6 +399,7 @@ static void deinit(void) {
   unobstructed_area_service_unsubscribe();
   accel_tap_service_unsubscribe();
   if (touch_service_is_enabled()) touch_service_unsubscribe();
+  connection_service_unsubscribe();
   window_destroy(s_main_window);
   fonts_unload_custom_font(s_font_time);
   fonts_unload_custom_font(s_font_date);

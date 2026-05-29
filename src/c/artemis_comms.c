@@ -97,8 +97,14 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
   if ((t = dict_find(iter, MESSAGE_KEY_VIBRATE_EVENTS))) {
     s_settings.vibrate_events = (t->value->uint8 != 0); cfg_changed = true;
   }
-  if ((t = dict_find(iter, MESSAGE_KEY_INFO_ON_SHAKE))) {
-    s_settings.info_on_shake = (prv_fetch_int(t) != 0); cfg_changed = true;
+  if ((t = dict_find(iter, MESSAGE_KEY_VIBRATE_BT_DISCONNECT))) {
+    s_settings.vibrate_bt_disconnect = (t->value->uint8 != 0); cfg_changed = true;
+  }
+  if ((t = dict_find(iter, MESSAGE_KEY_INFO_TRIGGER))) {
+      int v = (int)prv_fetch_int(t);
+      s_settings.info_trigger = (uint8_t)(v >= INFO_TRIGGER_NEVER && v <= INFO_TRIGGER_ALWAYS
+                                            ? v : INFO_TRIGGER_SHAKE);
+      cfg_changed = true;
   }
   if ((t = dict_find(iter, MESSAGE_KEY_INFO_DISPLAY_S))) {
     int v = (int)prv_fetch_int(t);
@@ -121,7 +127,7 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
   if (cfg_changed) {
     persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
     artemis_info_rebuild_slots();
-    artemis_apply_shake_setting();
+    artemis_apply_interaction_settings();
   }
 
   // ── Phase 3: Render ──────────────────────────────────────────────────────────

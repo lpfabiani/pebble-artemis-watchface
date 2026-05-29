@@ -32,3 +32,7 @@ void artemis_clock_peek(int unobstructed_h);
 
 // Update time and date text. Call every minute from tick_handler.
 void artemis_clock_refresh(struct tm *tick_time);
+
+// Update the Bluetooth connection state and redraw the satellite indicator.
+// Pass false to show the indicator (red/white satellite); true to hide it.
+void artemis_clock_set_bluetooth_status(bool connected);

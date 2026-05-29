@@ -27,25 +27,72 @@ module.exports = [
     "items": [
       {
         "type": "heading",
-        "defaultValue": "Watch Behaviour"
+        "defaultValue": "General"
       },
       {
         "type": "toggle",
-        "messageKey": "INFO_ON_SHAKE",
-        "label": "Show mission info on shake",
+        "messageKey": "VIBRATE_BT_DISCONNECT",
+        "label": "Vibrate on Bluetooth disconnect",
         "defaultValue": true
+      },
+      {
+        "type": "toggle",
+        "messageKey": "VIBRATE_EVENTS",
+        "label": "Vibrate on special events",
+        "defaultValue": true
+      }
+    ]
+  },
+  // ── Mission Info ────────────────────────────────────────────────────────
+  {
+    "type": "section",
+    "items": [
+      {
+        "type": "heading",
+        "defaultValue": "Mission Info"
+      },
+      {
+        "type": "select",
+        "messageKey": "INFO_TRIGGER",
+        "label": "When to show mission info",
+        "defaultValue": "1",
+        "options": [
+          { "label": "Never",             "value": "0" },
+          { "label": "On shake",          "value": "1" },
+          { "label": "On touch",          "value": "2" },
+          { "label": "On shake or touch", "value": "3" },
+          { "label": "Always",            "value": "4" }
+        ]
       },
       {
         "type": "select",
         "messageKey": "INFO_DISPLAY_S",
         "label": "Info display duration",
         "defaultValue": "10",
+         "description": "Applies when trigger is shake, touch, or both; not in Never or Always",
         "options": [
           { "label": "10 seconds", "value": "10" },
           { "label": "20 seconds", "value": "20" },
           { "label": "30 seconds", "value": "30" },
           { "label": "60 seconds", "value": "60" }
         ]
+      },
+      {
+        "type": "select",
+        "messageKey": "UPDATE_INTERVAL",
+        "label": "Update Interval",
+        "defaultValue": "30",
+        "options": [
+          { "label": "15 minutes", "value": "15" },
+          { "label": "30 minutes", "value": "30" },
+          { "label": "60 minutes", "value": "60" }
+        ]
+      },
+      {
+        "type": "toggle",
+        "messageKey": "USE_MILES",
+        "label": "Use Miles (instead of km)",
+        "defaultValue": false
       }
     ]
   },
@@ -112,40 +159,6 @@ module.exports = [
         "label": "Position 6",
         "defaultValue": "6",
         "options": fieldOptions
-      }
-    ]
-  },
-
-  // ── Data Updates ───────────────────────────────────────────────────────────
-  {
-    "type": "section",
-    "items": [
-      {
-        "type": "heading",
-        "defaultValue": "Data Updates"
-      },
-      {
-        "type": "select",
-        "messageKey": "UPDATE_INTERVAL",
-        "label": "Update Interval",
-        "defaultValue": "30",
-        "options": [
-          { "label": "15 minutes", "value": "15" },
-          { "label": "30 minutes", "value": "30" },
-          { "label": "60 minutes", "value": "60" }
-        ]
-      },
-      {
-        "type": "toggle",
-        "messageKey": "USE_MILES",
-        "label": "Use Miles (instead of km)",
-        "defaultValue": false
-      },
-      {
-        "type": "toggle",
-        "messageKey": "VIBRATE_EVENTS",
-        "label": "Vibrate on special events",
-        "defaultValue": true
       }
     ]
   },

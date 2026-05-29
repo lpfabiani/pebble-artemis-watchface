@@ -33,7 +33,7 @@
 // ─── Persistent storage ───────────────────────────────────────────────────────
 #define SETTINGS_KEY     1
 #define ARTEMIS_KEY      2
-#define SETTINGS_VERSION 4  // bump when struct layout changes to force reset
+#define SETTINGS_VERSION 7  // bump when struct layout changes to force reset
 
 // ─── Platform slot count ──────────────────────────────────────────────────────
 #define MAX_SLOTS 6
@@ -44,12 +44,10 @@
 #endif
 
 // ─── Display modes ────────────────────────────────────────────────────────────
-// Owned by main.c as a private static. Declared here so artemis_update_display()
-// and artemis_apply_shake_setting() prototypes are self-documenting.
 typedef enum {
   DISPLAY_LOGO  = 0,   // default — logo visible, bottom zone normal
   DISPLAY_EVENT = 1,   // special event active — event banner visible
-  DISPLAY_INFO  = 2,   // after shake — info slots visible, bottom zone hidden
+  DISPLAY_INFO  = 2,   // after shake/touch — info slots visible, bottom zone hidden
 } DisplayMode;
 
 // ─── Field types ──────────────────────────────────────────────────────────────
@@ -124,6 +122,15 @@ typedef enum {
   #define FONT_EVENT_H 14
 #endif
 
+  // ─── Info trigger modes ───────────────────────────────────────────────────────
+  typedef enum {
+    INFO_TRIGGER_NEVER  = 0,  // logo always; telemetry never shown
+    INFO_TRIGGER_SHAKE  = 1,  // accelerometer tap → timed info
+    INFO_TRIGGER_TOUCH  = 2,  // touchscreen tap → timed info (touch-capable watches only)
+    INFO_TRIGGER_BOTH   = 3,  // either input → timed info
+    INFO_TRIGGER_ALWAYS = 10,  // telemetry is the permanent default view
+  } InfoTrigger;
+
 // ─── Data structs ─────────────────────────────────────────────────────────────
 typedef struct {
   uint8_t  version;
@@ -131,8 +138,9 @@ typedef struct {
   bool     use_miles;
   uint8_t  slots[MAX_SLOTS];
   bool     vibrate_events;
-  bool     info_on_shake;    // show info slots when watch is tapped/shaken
-  uint8_t  info_display_s;  // seconds to keep info visible after shake (5–60)
+  bool     vibrate_bt_disconnect;  // vibrate when Bluetooth connection is lost
+  uint8_t  info_trigger;    // InfoTrigger
+  uint8_t  info_display_s;  // seconds to keep info visible (5–60)
 } ArtemisSettings;
 
 #define MAX_UPCOMING 5
@@ -182,11 +190,11 @@ void overlay_geometry(int *out_top, int *out_h);
 // Runs the LOGO / EVENT / INFO state machine and shows/hides layers accordingly.
 void artemis_update_display(void);
 
-// Re-subscribe or unsubscribe from AccelTapService based on s_settings.info_on_shake.
-// Call after loading or changing the setting. Defined in main.c.
-void artemis_apply_shake_setting(void);
+// Apply info_on_shake and info_on_touch settings: re-subscribe or unsubscribe
+// AccelTapService and TouchService accordingly. Call after loading or changing
+// either setting. Defined in main.c.
+void artemis_apply_interaction_settings(void);
 
 // ─── Layer helper ────────────────────────────────────────────────────────────
 TextLayer *artemis_make_text_layer(Layer *root, GRect r, GColor col,
                                  GFont font, GTextAlignment align);
-

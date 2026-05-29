@@ -235,7 +235,7 @@ function fetchArtemisData() {
 
 // ─── Pebble event listeners ───────────────────────────────────────────────────
 Pebble.addEventListener('ready', function() {
-  console.log('Artemis II JS ready');
+  console.log('Artemis Missions Watchface JS ready');
   fetchArtemisData();
 });
 
