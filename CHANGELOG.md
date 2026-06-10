@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.3] — 2026-05-30
+
+- Changes for having pre-mission and post-mission information.
+
+### Added
+- **`artemis_mission.h`** — single file to swap when porting to a new mission. Contains
+  `MISSION_NAME`, `MISSION_CREW`, `LAUNCH_EPOCH`, `MISSION_END_HOURS`, post-mission stats
+  (`MISSION_STATS_MET_S`, `MISSION_STATS_DIST_KM`), and the `SPECIAL_EVENTS_INIT` table.
+  Included by `artemis_event.c`, `artemis_info.c`, and `main.c`. Porting to Artemis III
+  requires changing only this file.
+- **Phase-aware DISPLAY_INFO** — what the user sees after a shake now depends on mission phase:
+  - **Pre-launch**: mission name + crew names + T-minus countdown (`T-Xd Xh Xm`)
+  - **Active**: telemetry slots (MET, speed, distance, etc.) — unchanged from v2.2
+  - **Post-mission**: mission name + crew names + MET and distance stats (if known) +
+    "completed Xd Xh ago"
+  Phase is computed watch-side from `LAUNCH_EPOCH` and `MISSION_END_HOURS` constants plus
+  the `mission_complete` flag from the phone. No phone connection required for any transition.
+
+### Changed
+- **`artemis_event` refactored: singleton → instance-based `ArtemisEventOverlay`.**
+  - `ArtemisEventOverlay` struct (`layer` + `last_msg`) heap-allocated per use site.
+  - `artemis_event_show(ev, msg, vibrate)` — merges the former `artemis_event_update()` +
+    `artemis_event_show()` pair: measures text, centers it vertically in the top zone, sets
+    it, makes it visible, and vibrates on message change (when `vibrate` is true).
+  - `artemis_event_hide(ev)` unchanged in behaviour; now operates on the instance.
+  - `artemis_event_check()` — made a pure free function with no instance or side effects;
+    queries the hardcoded table and API milestones, returns the active message or NULL.
+  - Two instances now in use: `s_event_overlay` in `main.c` (NASA event banners) and
+    `s_phase_overlay` inside `artemis_info.c` (pre-launch / post-mission phase text).
+- **`artemis_info.c` — phase-aware lifecycle and memory optimization.**
+  - `artemis_info_create()` checks mission phase at startup: ACTIVE → allocates slot
+    TextLayers + decorations layer as before; non-active → allocates only `s_phase_overlay`
+    (saves ~12 TextLayer allocations on pre-launch and post-mission watches).
+  - `artemis_info_refresh()` routes to slot rendering (ACTIVE) or `artemis_event_show` on
+    `s_phase_overlay` (non-active). Lazy-creates `s_phase_overlay` if the mission completes
+    while the watchface is running (ACTIVE → COMPLETE mid-session transition).
+  - `artemis_info_rebuild_slots()` — guarded; no-op outside ACTIVE phase.
+  - `MissionPhase` enum (`PRELAUNCH` / `ACTIVE` / `COMPLETE`) and all phase detection /
+    text-building logic moved here from `main.c`.
+- **`main.c` simplified** — no mission phase awareness. `artemis_show_display_elements()`
+  is now a pure display orchestrator: it receives an optional `event_text` string and routes
+  to event banner, info zone, or logo accordingly. All phase logic lives in `artemis_info.c`.
+
 ## [2.2] — 2026-05-29
 
 ### Added
@@ -119,13 +162,3 @@
 - 5-platform build: Emery, Basalt, Aplite, Chalk, Gabbro
 - Battery indicator (arc on round, bar on rectangular)
 - 30-minute data refresh with 5-minute throttle
-
-
-# Possible future improvements:
-
-- When Artemis III comes:
-  - Pre-launch countdown — when current time < LAUNCH_EPOCH, INFO shows a countdown ("T−3d 14h 22m") in the top zone instead of telemetry
-  - Post-mission commemorative screen — when mission_complete: DISPLAY_LOGO shows total mission stats (duration, max speed, max Earth distance) from stored ArtemisData
-  - Special icon for Artemis III mission.
-- Mission abstraction — extract all Artemis II–specific constants (LAUNCH_EPOCH, MISSION_END_HOURS, crew names, special events) into a single artemis_mission.c (the .h exists already); allows forking for Artemis III
-

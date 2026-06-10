@@ -2,18 +2,17 @@
  * @file artemis_info.c
  * @brief Top-zone info display: slot rendering, decorations, and event overlay.
  *
- * Owns @c s_info_layer (parent container for field label/value layers and the
- * decorations layer) and @c s_event_overlay_layer (independent, full top-zone
- * text layer for special event banners). @c artemis_info_refresh() implements
- * the display priority logic: special event → mission fields → mission complete.
- * @c artemis_info_rebuild_slots() tears down and recreates slot layers when the
- * configuration changes.
+ * Owns @c s_info_layer and its children. In active mission: slot label/value
+ * layers + decorations layer. Pre-launch and post-mission: an ArtemisEventOverlay
+ * (@c s_phase_overlay) that shows crew, T-minus countdown, or completion stats.
+ * Phase detection is internal — callers always use the same public API.
  *
  * @author LP Fabiani
  * @date 2026
  */
 #include "artemis_info.h"
 #include "artemis.h"
+#include "artemis_event.h"
 
 // ─── Variables ────────────────────────────────────────────────────────────
 // ─── Field display labels ─────────────────────────────────────────────────────
@@ -25,10 +24,110 @@ static const char *FIELD_LABELS[FIELD_COUNT] = {
 };
 
 
+// ─── Mission phase ────────────────────────────────────────────────────────────
+typedef enum {
+  MISSION_PHASE_PRELAUNCH,
+  MISSION_PHASE_ACTIVE,
+  MISSION_PHASE_COMPLETE,
+} MissionPhase;
+
+static MissionPhase prv_get_mission_phase(void) {
+  time_t now = time(NULL);
+  time_t launch_epoch = (time_t)s_mission.launch_epoch;
+  if (now < launch_epoch) return MISSION_PHASE_PRELAUNCH;
+  if (s_artemis.mission_complete
+      || now >= launch_epoch + (time_t)s_mission.end_hours * 3600)
+    return MISSION_PHASE_COMPLETE;
+  return MISSION_PHASE_ACTIVE;
+}
+
+static const MissionEvent *prv_next_event(time_t now) {
+  const MissionEvent *best = NULL;
+  for (int i = 0; i < s_mission.num_events; i++) {
+    const MissionEvent *ev = &s_mission.events[i];
+    if (ev->epoch == 0) continue;
+    if ((time_t)ev->epoch <= now) continue;
+    if (!best || ev->epoch < best->epoch) best = ev;
+  }
+  return best;
+}
+
+static void prv_first_line(const char *msg, char *buf, size_t size) {
+  const char *nl = strchr(msg, '\n');
+  size_t len = nl ? (size_t)(nl - msg) : strlen(msg);
+  if (len >= size) len = size - 1;
+  memcpy(buf, msg, len);
+  buf[len] = '\0';
+}
+
+static char s_phase_buf[160];
+
+static const char *prv_build_phase_text(MissionPhase phase) {
+  char *p = s_phase_buf;
+  int rem = (int)sizeof(s_phase_buf);
+  int n;
+
+  time_t now = time(NULL);
+
+  time_t launch_epoch = (time_t)s_mission.launch_epoch;
+
+  if (phase != MISSION_PHASE_ACTIVE) {
+    const MissionEvent *ev = prv_next_event(now);
+    if (ev) {
+      char first_line[24];
+      prv_first_line(ev->message, first_line, sizeof(first_line));
+      int32_t sec = (int32_t)((time_t)ev->epoch - now);
+      if (sec < 0) sec = 0;
+      int d = (int)(sec / 86400);
+      int h = (int)((sec % 86400) / 3600);
+      int m = (int)((sec % 3600) / 60);
+      if (d > 0)      snprintf(p, rem, "%s in %dd %dh %dm", first_line, d, h, m);
+      else if (h > 0) snprintf(p, rem, "%s in %dh %dm", first_line, h, m);
+      else            snprintf(p, rem, "%s in %dm", first_line, m);
+      return s_phase_buf;
+    }
+  }
+
+  if (phase == MISSION_PHASE_PRELAUNCH) {
+    n = snprintf(p, rem, "%s\n", s_mission.name);
+    p += n; rem -= n;
+    if (s_mission.crew[0] != '\0') {
+      n = snprintf(p, rem, "%s\n", s_mission.crew);
+      p += n; rem -= n;
+    }
+    int32_t sec = (int32_t)(launch_epoch - now);
+    if (sec < 0) sec = 0;
+    int d = (int)(sec / 86400);
+    int h = (int)((sec % 86400) / 3600);
+    int m = (int)((sec % 3600) / 60);
+    if (d > 0)      snprintf(p, rem, "T-%dd %dh %dm", d, h, m);
+    else if (h > 0) snprintf(p, rem, "T-%dh %dm", h, m);
+    else            snprintf(p, rem, "T-%dm", m);
+  } else {
+    // COMPLETE, no stats: just name + elapsed. Stats are shown via slot layers.
+    time_t end_epoch = launch_epoch + (time_t)s_mission.end_hours * 3600;
+    int32_t sec = (int32_t)(now - end_epoch);
+    if (sec < 0) sec = 0;
+    int d = (int)(sec / 86400);
+    int h = (int)((sec % 86400) / 3600);
+    n = snprintf(p, rem, "%s\n", s_mission.name);
+    p += n; rem -= n;
+    if (d < 0) snprintf(p, rem, "completed %dh ago", h);
+    else {
+      if (d < 30) snprintf(p, rem, "completed %dd %dh ago", d, h);
+      else        snprintf(p, rem, "completed %dd ago", d);
+    }
+  }
+
+  return s_phase_buf;
+}
 
 // ─── Owned globals ────────────────────────────────────────────────────────────
-static Layer     *s_info_layer         = NULL;
-static Layer     *s_decorations_layer  = NULL;
+static ArtemisEventOverlay *s_phase_overlay    = NULL;
+static Layer               *s_info_layer       = NULL;
+static Layer               *s_decorations_layer = NULL;
+static MissionPhase         s_last_phase       = MISSION_PHASE_PRELAUNCH;
+static bool                 s_stats_rendered   = false;
 
 static TextLayer *s_field_label_layers[MAX_SLOTS];
 static TextLayer *s_field_value_layers[MAX_SLOTS];
@@ -73,7 +172,7 @@ static int32_t prv_to_miles(int32_t km) {
 
 // ─── MET ─────────────────────────────────────────────────────────────────────
 static void prv_format_met(char *buf, size_t size, time_t now) {
-  int32_t sec = (int32_t)(now - LAUNCH_EPOCH);
+  int32_t sec = (int32_t)(now - (time_t)s_mission.launch_epoch);
   if (sec < 0) sec = 0;
   int32_t tm = sec / 60, m = tm % 60, th = tm / 60, h = th % 24, d = th / 24;
   snprintf(buf, size, "%dd %dh %dm", (int)d, (int)h, (int)m);
@@ -84,7 +183,7 @@ static void prv_format_milestone_eta(char *buf, size_t size, time_t now) {
   if (s_artemis.milestone_met_ms < 0 || s_artemis.last_update_epoch == 0) {
     snprintf(buf, size, "--"); return;
   }
-  int32_t sec = (int32_t)(now - LAUNCH_EPOCH);
+  int32_t sec = (int32_t)(now - (time_t)s_mission.launch_epoch);
   if (sec < 0) sec = 0;
   int32_t rem = s_artemis.milestone_met_ms - sec * 1000;
   if (rem <= 0) { snprintf(buf, size, "passed"); return; }
@@ -224,6 +323,60 @@ static void prv_render_all_slots(void) {
       prv_render_slot(s_active_slots[i], now);
 }
 
+// ─── Post-mission stat rendering ──────────────────────────────────────────────
+static void prv_populate_stat_slot(int si, const char *label, const char *value) {
+  strncpy(s_slot_label_bufs[si], label, FIELD_BUF_SIZE - 1);
+  s_slot_label_bufs[si][FIELD_BUF_SIZE - 1] = '\0';
+  strncpy(s_slot_value_bufs[si], value, VALUE_BUF_SIZE - 1);
+  s_slot_value_bufs[si][VALUE_BUF_SIZE - 1] = '\0';
+  if (s_field_label_layers[si])
+    text_layer_set_text(s_field_label_layers[si], s_slot_label_bufs[si]);
+  if (s_field_value_layers[si]) {
+    text_layer_set_text_color(s_field_value_layers[si], ARTEMIS_COLOR_VALUES);
+    text_layer_set_text(s_field_value_layers[si], s_slot_value_bufs[si]);
+  }
+}
+
+static void prv_render_stats(void) {
+  int si = 0;
+  char num[16];
+  char val[VALUE_BUF_SIZE];
+
+  if (s_mission.stats_met_s > 0) {
+    int32_t ms = s_mission.stats_met_s;
+    snprintf(val, sizeof(val), "%dd %dh",
+             (int)(ms / 86400), (int)((ms % 86400) / 3600));
+    prv_populate_stat_slot(si++, "Duration", val);
+  }
+
+  if (s_mission.stats_max_dist_km > 0) {
+    int32_t d = s_settings.use_miles
+        ? prv_to_miles(s_mission.stats_max_dist_km)
+        : s_mission.stats_max_dist_km;
+    prv_format_commas(d, num, sizeof(num));
+    snprintf(val, sizeof(val), "%s %s", num, prv_unit("km", "mi"));
+    prv_populate_stat_slot(si++, "Earth", val);
+  }
+
+  if (s_mission.stats_max_speed_kmh > 0) {
+    int32_t s = s_settings.use_miles
+        ? prv_to_miles(s_mission.stats_max_speed_kmh)
+        : s_mission.stats_max_speed_kmh;
+    prv_format_commas(s, num, sizeof(num));
+    snprintf(val, sizeof(val), "%s %s", num, prv_unit("km/h", "mph"));
+    prv_populate_stat_slot(si++, "Speed", val);
+  }
+
+  if (s_mission.stats_moon_dist_km > 0) {
+    int32_t d = s_settings.use_miles
+        ? prv_to_miles(s_mission.stats_moon_dist_km)
+        : s_mission.stats_moon_dist_km;
+    prv_format_commas(d, num, sizeof(num));
+    snprintf(val, sizeof(val), "%s %s", num, prv_unit("km", "mi"));
+    prv_populate_stat_slot(si++, "Moon", val);
+  }
+}
+
 // ─── Decorations ──────────────────────────────────────────────────────────────
 #ifdef PBL_ROUND
 static int32_t prv_isqrt(int32_t n) {
@@ -320,6 +473,21 @@ static void prv_build_active_slots(void) {
   }
 }
 
+static int prv_count_stats(void) {
+  int n = 0;
+  if (s_mission.stats_met_s > 0)         n++;
+  if (s_mission.stats_max_dist_km > 0)   n++;
+  if (s_mission.stats_max_speed_kmh > 0) n++;
+  if (s_mission.stats_moon_dist_km > 0)  n++;
+  return n;
+}
+
+static void prv_build_stat_slots(void) {
+  s_num_active = prv_count_stats();
+  for (int i = 0; i < s_num_active; i++)
+    s_active_slots[i] = i;
+}
+
 // ─── Slot layer lifecycle ─────────────────────────────────────────────────────
 static void prv_destroy_slots(void) {
   for (int i = 0; i < MAX_SLOTS; i++) {
@@ -378,8 +546,6 @@ static void prv_create_chrome(void) {
 static void prv_create_slots(void) {
   if (!s_root_layer) return;
   prv_destroy_slots();
-  prv_build_active_slots();
-
   if (s_num_active == 0) return;
 
   int r = s_root_w / 2;
@@ -448,8 +614,6 @@ static void prv_create_slots(void) {
 static void prv_create_slots(void) {
   if (!s_root_layer) return;
   prv_destroy_slots();
-  prv_build_active_slots();
-
   if (s_num_active == 0) return;
 
   int avail = s_split_y;
@@ -476,25 +640,36 @@ static void prv_create_slots(void) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 void artemis_info_create(Layer *root) {
-  // Initialize all slot pointers to NULL
   for (int i = 0; i < MAX_SLOTS; i++) {
     s_field_label_layers[i] = NULL;
     s_field_value_layers[i] = NULL;
   }
 
-  // Info layer: top-zone container for fields + decorations.
-  // +1 px so the zone-separator line drawn at y=s_split_y is not clipped.
+  // Info layer: top-zone container. +1 px so zone-separator at s_split_y is not clipped.
   s_info_layer = layer_create(GRect(0, 0, s_root_w, s_split_y + 1));
   layer_add_child(root, s_info_layer);
 
-  // Slot layers — added as children of s_info_layer
-  prv_create_slots();
+  MissionPhase phase = prv_get_mission_phase();
+  s_last_phase     = phase;
+  s_stats_rendered = false;
 
-  // Decorations added last within s_info_layer so lines draw over field text
-  prv_create_chrome();
+  if (phase == MISSION_PHASE_ACTIVE) {
+    prv_build_active_slots();
+    prv_create_slots();
+    prv_create_chrome();
+  } else if (phase == MISSION_PHASE_COMPLETE && prv_count_stats() > 0) {
+    prv_build_stat_slots();
+    prv_create_slots();
+    prv_create_chrome();
+  } else {
+    // PRELAUNCH or COMPLETE without stats: phase overlay text only.
+    s_phase_overlay = artemis_event_create(s_info_layer);
+  }
 }
 
 void artemis_info_destroy(void) {
+  artemis_event_destroy(s_phase_overlay);
+  s_phase_overlay = NULL;
   if (s_decorations_layer) { layer_destroy(s_decorations_layer); s_decorations_layer = NULL; }
   for (int i = 0; i < MAX_SLOTS; i++) {
     if (s_field_label_layers[i]) { text_layer_destroy(s_field_label_layers[i]); s_field_label_layers[i] = NULL; }
@@ -511,12 +686,71 @@ void artemis_info_hide(void) {
   if (s_info_layer) layer_set_hidden(s_info_layer, true);
 }
 
-// Update slot content. Visibility is managed by main.c (DISPLAY_INFO mode only).
 void artemis_info_refresh(void) {
   if (!s_info_layer) return;
-  prv_render_all_slots();
+  MissionPhase phase = prv_get_mission_phase();
+
+  // Mid-session ACTIVE → COMPLETE transition: rebuild layer set for the new phase.
+  if (s_last_phase == MISSION_PHASE_ACTIVE && phase == MISSION_PHASE_COMPLETE) {
+    prv_destroy_slots();
+    if (s_decorations_layer) { layer_destroy(s_decorations_layer); s_decorations_layer = NULL; }
+    if (prv_count_stats() > 0) {
+      prv_build_stat_slots();
+      prv_create_slots();
+      prv_create_chrome();
+    } else {
+      s_phase_overlay = artemis_event_create(s_info_layer);
+    }
+    s_stats_rendered = false;
+    s_last_phase = phase;
+  }
+
+  if (phase == MISSION_PHASE_ACTIVE) {
+    if (s_num_active > 0) prv_render_all_slots();
+  } else if (phase == MISSION_PHASE_COMPLETE && prv_count_stats() > 0) {
+    if (!s_stats_rendered) {
+      prv_render_stats();
+      s_stats_rendered = true;
+    }
+  } else {
+    // PRELAUNCH or COMPLETE without stats: lazily create overlay if needed.
+    if (!s_phase_overlay)
+      s_phase_overlay = artemis_event_create(s_info_layer);
+    artemis_event_show(s_phase_overlay, prv_build_phase_text(phase), false);
+  }
 }
 
 void artemis_info_rebuild_slots(void) {
-  prv_create_slots();
+  MissionPhase phase = prv_get_mission_phase();
+  if (phase == MISSION_PHASE_ACTIVE) {
+    prv_build_active_slots();
+    prv_create_slots();
+    return;
+  }
+  if (phase != MISSION_PHASE_COMPLETE) return;
+
+  bool want_stats  = (prv_count_stats() > 0);
+  bool have_layout = (s_phase_overlay == NULL);  // built as stat slots, not overlay
+
+  if (want_stats != have_layout) {
+    // Layer-set mismatch: a mission sync just made stats available (or, in
+    // principle, took them away) while the COMPLETE-phase layer set built at
+    // artemis_info_create()/last transition no longer matches. Tear down and
+    // rebuild for the layout prv_count_stats() now calls for — same recipe as
+    // the ACTIVE→COMPLETE transition in artemis_info_refresh().
+    prv_destroy_slots();
+    if (s_decorations_layer) { layer_destroy(s_decorations_layer); s_decorations_layer = NULL; }
+    artemis_event_destroy(s_phase_overlay);
+    s_phase_overlay = NULL;
+    if (want_stats) {
+      prv_build_stat_slots();
+      prv_create_slots();
+      prv_create_chrome();
+    } else {
+      s_phase_overlay = artemis_event_create(s_info_layer);
+    }
+    s_stats_rendered = false;
+  } else if (want_stats) {
+    s_stats_rendered = false;  // force re-render on next refresh (e.g. units changed)
+  }
 }

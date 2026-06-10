@@ -9,8 +9,9 @@
  * structs, extern declarations for all shared globals, and prototypes for
  * overlay_geometry() and artemis_update_display() (both defined in main.c).
  *
- * Mission-specific data (launch epoch, special events, field display labels)
- * lives in artemis_mission.h and is included only by artemis_info.c.
+ * Mission-specific data (launch epoch, crew, special events) is no longer
+ * compiled in — it's synced from the cloud (missions/active.json on GitHub)
+ * into the persisted ArtemisMission struct, s_mission, defined right here.
  *
  * @author LP Fabiani
  * @date 2026
@@ -20,6 +21,9 @@
 
 // Uncoment to set date and time for the Artemis II launch.
 //#define DEMO_MODE
+#define DEMO_MODE_TIME "06:35"
+#define DEMO_MODE_DATE "Wed 1"
+#define DEMO_MODE_DATE_LONG "Wed, Apr 1"
 
 // ─── Debug logging ────────────────────────────────────────────────────────────
 //#define DEBUG_ENABLED  // comment to disable APP_LOG debug output
@@ -143,6 +147,39 @@ typedef struct {
   uint8_t  info_display_s;  // seconds to keep info visible (5–60)
 } ArtemisSettings;
 
+// ─── Cloud-delivered mission data ─────────────────────────────────────────────
+// Replaces the compile-time constants formerly in artemis_mission.h. Synced
+// from the phone (which fetches missions/active.json from GitHub) once every
+// 24 hours, persisted under MISSION_KEY. A freshly-installed watch starts with
+// this struct zeroed, which reproduces the old "no mission yet" fallback
+// behaviour (launch_epoch 0 → MISSION_PHASE_COMPLETE, empty name/crew, all
+// stats omitted) with no separate fallback code required.
+//
+// Struct sized to stay under Pebble's 256-byte persist_write_data limit:
+// 16 + 36 + 4 + 2 + 4*4 + 4 + 1 + 5*32 ≈ 244 bytes.
+#define MISSION_KEY         3
+#define MAX_MISSION_EVENTS  5
+
+typedef struct {
+  uint32_t epoch;            // UTC unix timestamp when the event fires
+  char     message[24];      // "LINE1\nLINE2" banner text
+  uint16_t display_minutes;  // 0 = 5-minute default
+} MissionEvent;
+
+typedef struct {
+  char         name[16];               // e.g. "Artemis III"
+  char         crew[36];               // "Line1\nLine2", "" to omit
+  uint32_t     launch_epoch;           // UTC unix seconds; 0 = no mission yet
+  uint16_t     end_hours;              // nominal mission duration
+  int32_t      stats_met_s;            // post-mission stats; 0 = omit from display
+  int32_t      stats_max_dist_km;
+  int32_t      stats_max_speed_kmh;
+  int32_t      stats_moon_dist_km;
+  uint32_t     last_sync_epoch;        // when this data was last synced; 0 = never
+  uint8_t      num_events;             // number of valid entries in events[]
+  MissionEvent events[MAX_MISSION_EVENTS];
+} ArtemisMission;
+
 #define MAX_UPCOMING 5
 typedef struct {
   char     name[19];   // shortened milestone name (≤18 chars + null)
@@ -168,13 +205,10 @@ typedef struct {
   UpcomingMilestone upcoming[MAX_UPCOMING];
 } ArtemisData;
 
-// ─── Mission timing ───────────────────────────────────────────────────────────
-#define LAUNCH_EPOCH       ((time_t)1775082900)  // Apr 1 2026 22:35 UTC
-#define MISSION_END_HOURS  229
-
 // ─── Shared globals — defined in main.c ──────────────────────────────────────
 extern ArtemisSettings s_settings;
 extern ArtemisData     s_artemis;
+extern ArtemisMission  s_mission;
 extern Layer          *s_root_layer;
 extern int             s_root_w, s_root_h;
 extern int             s_split_y;

@@ -83,12 +83,12 @@ static void satellite_update_proc(Layer *layer, GContext *ctx) {
 // ─── Time & date ─────────────────────────────────────────────────────────────
 #ifdef DEMO_MODE
 static void prv_update_time(struct tm *tick_time) {
-  snprintf(s_time_buf, sizeof(s_time_buf), "06:35");
+  snprintf(s_time_buf, sizeof(s_time_buf), DEMO_MODE_TIME);
   text_layer_set_text(s_time_layer, s_time_buf);
 #ifdef PBL_ROUND
-  snprintf(s_date_buf, sizeof(s_date_buf), "Wed 1");
+  snprintf(s_date_buf, sizeof(s_date_buf), DEMO_MODE_DATE);
 #else
-  snprintf(s_date_buf, sizeof(s_date_buf), "Wed, Apr 1");
+  snprintf(s_date_buf, sizeof(s_date_buf), DEMO_MODE_DATE_LONG);
 #endif
   text_layer_set_text(s_date_layer, s_date_buf);
 }

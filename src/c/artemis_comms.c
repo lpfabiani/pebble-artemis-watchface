@@ -19,6 +19,9 @@
 static uint32_t s_name_keys[MAX_UPCOMING];
 static uint32_t s_epoch_keys[MAX_UPCOMING];
 static uint32_t s_slot_keys[MAX_SLOTS];
+static uint32_t s_mission_evt_epoch_keys[MAX_MISSION_EVENTS];
+static uint32_t s_mission_evt_msg_keys[MAX_MISSION_EVENTS];
+static uint32_t s_mission_evt_min_keys[MAX_MISSION_EVENTS];
 
 // ─── AppMessage helpers ───────────────────────────────────────────────────────
 // Clay sends select values as cstrings (e.g. "1", "30"). Telemetry arrives as
@@ -42,7 +45,7 @@ static int32_t prv_fetch_int(Tuple *t) {
 
 // ─── AppMessage ───────────────────────────────────────────────────────────────
 static void inbox_received_callback(DictionaryIterator *iter, void *context) {
-  bool data_changed = false, cfg_changed = false;
+  bool data_changed = false, cfg_changed = false, mission_synced = false;
   Tuple *t;
 
   // ── Phase 1: Parse ───────────────────────────────────────────────────────────
@@ -68,6 +71,15 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
   FETCH_STR(ARTEMIS_STATION,        s_artemis.dsn_station)
   FETCH_I32(ARTEMIS_DOWNLINK,       s_artemis.downlink_kbps)
 
+  FETCH_STR(MISSION_NAME,                 s_mission.name)
+  FETCH_STR(MISSION_CREW,                 s_mission.crew)
+  FETCH_I32(MISSION_LAUNCH_EPOCH,         s_mission.launch_epoch)
+  FETCH_I32(MISSION_END_HOURS,            s_mission.end_hours)
+  FETCH_I32(MISSION_STATS_MET_S,          s_mission.stats_met_s)
+  FETCH_I32(MISSION_STATS_MAX_DIST_KM,    s_mission.stats_max_dist_km)
+  FETCH_I32(MISSION_STATS_MAX_SPEED_KMH,  s_mission.stats_max_speed_kmh)
+  FETCH_I32(MISSION_STATS_MOON_DIST_KM,   s_mission.stats_moon_dist_km)
+
 #undef FETCH_STR
 #undef FETCH_I32
 
@@ -81,6 +93,23 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     if ((t = dict_find(iter, s_epoch_keys[i]))) {
       s_artemis.upcoming[i].epoch = (uint32_t)t->value->int32;
       data_changed = true;
+    }
+  }
+
+  for (int i = 0; i < MAX_MISSION_EVENTS; i++) {
+    if ((t = dict_find(iter, s_mission_evt_epoch_keys[i]))) {
+      s_mission.events[i].epoch = (uint32_t)t->value->int32;
+      mission_synced = true;
+    }
+    if ((t = dict_find(iter, s_mission_evt_msg_keys[i])) && t->type == TUPLE_CSTRING) {
+      strncpy(s_mission.events[i].message, t->value->cstring,
+              sizeof(s_mission.events[i].message) - 1);
+      s_mission.events[i].message[sizeof(s_mission.events[i].message) - 1] = '\0';
+      mission_synced = true;
+    }
+    if ((t = dict_find(iter, s_mission_evt_min_keys[i]))) {
+      s_mission.events[i].display_minutes = (uint16_t)prv_fetch_int(t);
+      mission_synced = true;
     }
   }
 
@@ -124,6 +153,17 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     s_artemis.last_update_epoch = (uint32_t)time(NULL);
     persist_write_data(ARTEMIS_KEY, &s_artemis, sizeof(s_artemis));
   }
+
+  if ((t = dict_find(iter, MESSAGE_KEY_MISSION_SYNCED)) && t->value->uint8 == 1) {
+    uint8_t n = 0;
+    for (int i = 0; i < MAX_MISSION_EVENTS; i++) {
+      if (s_mission.events[i].epoch > 0) n++;
+    }
+    s_mission.num_events     = n;
+    s_mission.last_sync_epoch = (uint32_t)time(NULL);
+    persist_write_data(MISSION_KEY, &s_mission, sizeof(s_mission));
+    mission_synced = true;
+  }
   if (cfg_changed) {
     persist_write_data(SETTINGS_KEY, &s_settings, sizeof(s_settings));
     artemis_info_rebuild_slots();
@@ -132,7 +172,13 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
 
   // ── Phase 3: Render ──────────────────────────────────────────────────────────
 
-  if (data_changed || cfg_changed)
+  if (mission_synced) {
+    // New mission identity, timing, or stats can change which phase we're in
+    // and which slot layout that phase wants (e.g. stats just became
+    // available while already showing the post-mission "no stats" overlay).
+    artemis_info_rebuild_slots();
+  }
+  if (data_changed || cfg_changed || mission_synced)
     artemis_update_display();
 }
 
@@ -159,6 +205,22 @@ void artemis_comms_init(void) {
   s_slot_keys[4]  = MESSAGE_KEY_SLOT_5;
   s_slot_keys[5]  = MESSAGE_KEY_SLOT_6;
 
+  s_mission_evt_epoch_keys[0] = MESSAGE_KEY_MISSION_EVT0_EPOCH;
+  s_mission_evt_epoch_keys[1] = MESSAGE_KEY_MISSION_EVT1_EPOCH;
+  s_mission_evt_epoch_keys[2] = MESSAGE_KEY_MISSION_EVT2_EPOCH;
+  s_mission_evt_epoch_keys[3] = MESSAGE_KEY_MISSION_EVT3_EPOCH;
+  s_mission_evt_epoch_keys[4] = MESSAGE_KEY_MISSION_EVT4_EPOCH;
+  s_mission_evt_msg_keys[0]   = MESSAGE_KEY_MISSION_EVT0_MSG;
+  s_mission_evt_msg_keys[1]   = MESSAGE_KEY_MISSION_EVT1_MSG;
+  s_mission_evt_msg_keys[2]   = MESSAGE_KEY_MISSION_EVT2_MSG;
+  s_mission_evt_msg_keys[3]   = MESSAGE_KEY_MISSION_EVT3_MSG;
+  s_mission_evt_msg_keys[4]   = MESSAGE_KEY_MISSION_EVT4_MSG;
+  s_mission_evt_min_keys[0]   = MESSAGE_KEY_MISSION_EVT0_MIN;
+  s_mission_evt_min_keys[1]   = MESSAGE_KEY_MISSION_EVT1_MIN;
+  s_mission_evt_min_keys[2]   = MESSAGE_KEY_MISSION_EVT2_MIN;
+  s_mission_evt_min_keys[3]   = MESSAGE_KEY_MISSION_EVT3_MIN;
+  s_mission_evt_min_keys[4]   = MESSAGE_KEY_MISSION_EVT4_MIN;
+
   app_message_register_inbox_received(inbox_received_callback);
   app_message_register_inbox_dropped(inbox_dropped_callback);
   app_message_open(768, 64);
@@ -169,6 +231,14 @@ void artemis_comms_request_data(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) == APP_MSG_OK) {
     dict_write_uint8(iter, MESSAGE_KEY_REQUEST_ARTEMIS, 1);
+    app_message_outbox_send();
+  }
+}
+
+void artemis_comms_request_mission(void) {
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) == APP_MSG_OK) {
+    dict_write_uint8(iter, MESSAGE_KEY_REQUEST_MISSION, 1);
     app_message_outbox_send();
   }
 }

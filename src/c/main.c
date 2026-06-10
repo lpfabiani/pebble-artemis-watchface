@@ -29,6 +29,7 @@
 // ─── Shared globals (declared extern in artemis.h) ────────────────────────────
 ArtemisSettings s_settings;
 ArtemisData     s_artemis;
+ArtemisMission  s_mission;
 Layer          *s_root_layer = NULL;
 int             s_root_w = 0, s_root_h = 0;
 int             s_split_y = 0;
@@ -36,9 +37,10 @@ GFont           s_font_time  = NULL;
 GFont           s_font_date  = NULL;
 GFont           s_font_event = NULL;
 
-static Window     *s_main_window  = NULL;
-static DisplayMode s_display_mode = DISPLAY_LOGO;
-static AppTimer   *s_info_timer   = NULL;
+static Window              *s_main_window   = NULL;
+static DisplayMode          s_display_mode  = DISPLAY_INFO;
+static AppTimer            *s_info_timer    = NULL;
+static ArtemisEventOverlay *s_event_overlay = NULL;
 
 // ─── Overlay geometry ─────────────────────────────────────────────────────────
 void overlay_geometry(int *out_top, int *out_h) {
@@ -127,35 +129,27 @@ void artemis_apply_interaction_settings(void) {
 
 // ─── Display orchestration ────────────────────────────────────────────────────
 void artemis_show_display_elements(bool clock, bool logo, bool info, const char* event_text) {
-  if (clock)
-    artemis_clock_show();  // hidden only if peek is active (see prv_handle_peek)
-  else
-    artemis_clock_hide();  // hidden only if peek is active (see prv_handle_peek)
-
-  if (info && !event_text && s_artemis.mission_complete) 
-    event_text = "No Artemis mission\nongoing";
+  if (clock) artemis_clock_show(); else artemis_clock_hide();
 
   if (event_text) {
-    artemis_event_update(event_text);
-    artemis_event_show();
+    artemis_event_show(s_event_overlay, event_text, s_settings.vibrate_events);
     artemis_info_hide();
     artemis_logo_hide();
     return;
   }
-  
+
   if (info) {
-    artemis_info_refresh();
+    artemis_info_refresh();   // routes to slots or phase overlay internally
     artemis_info_show();
-    artemis_event_hide();
+    artemis_event_hide(s_event_overlay);
     artemis_logo_hide();
     return;
-  } 
-  
-  // if (logo)
+  }
+
   {
     artemis_logo_show();
     artemis_info_hide();
-    artemis_event_hide ();
+    artemis_event_hide(s_event_overlay);
   }
 }
 
@@ -273,6 +267,18 @@ static void prv_load_artemis(void) {
   }
 }
 
+static void prv_default_mission(void) {
+  memset(&s_mission, 0, sizeof(s_mission));
+}
+
+static void prv_load_mission(void) {
+  prv_default_mission();
+  ArtemisMission loaded;
+  if (persist_read_data(MISSION_KEY, &loaded, sizeof(loaded)) > 0) {
+    s_mission = loaded;
+  }
+}
+
 // ─── Timeline Peek ────────────────────────────────────────────────────────────
 // .change fires each animation frame as peek slides in/out.
 // .did_change fires once when the peek settles (or fully dismisses).
@@ -316,6 +322,8 @@ TextLayer *artemis_make_text_layer(Layer *root, GRect r, GColor col,
 }
 
 // ─── Tick handler ─────────────────────────────────────────────────────────────
+#define MISSION_SYNC_INTERVAL_S (24 * 60 * 60)
+
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // This is a precaution to save battery because, although we only subscribed to minutes,
   // during the tests sometimes we were awaken every second.
@@ -325,6 +333,16 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     int iv = (int)s_settings.update_interval_min;
     if (iv < 1) iv = 30;
     if (tick_time->tm_min % iv == 0) artemis_comms_request_data();
+  }
+  // Mission metadata refresh: check once an hour (independent of display mode —
+  // crew/launch-date/event updates matter whether or not info slots are showing)
+  // whether 24h have passed since the last successful sync.
+  if (tick_time->tm_min == 0) {
+    uint32_t now = (uint32_t)time(NULL);
+    if (s_mission.last_sync_epoch == 0
+        || now >= s_mission.last_sync_epoch + MISSION_SYNC_INTERVAL_S) {
+      artemis_comms_request_mission();
+    }
   }
   artemis_clock_refresh(tick_time);
   artemis_update_display();
@@ -340,10 +358,10 @@ static void main_window_load(Window *window) {
   s_root_h  = bounds.size.h;
   s_split_y = s_root_h * 60 / 100;
 
-  artemis_clock_create(root);   // sky + s_time_area_layer (moon, time, date)
-  artemis_info_create(root);   // info container + slots + decorations
-  artemis_event_create(root);  // event overlay banner
-  artemis_logo_create(root);   // mission logo (z-order: topmost)
+  artemis_clock_create(root);                    // sky + moon, time, date
+  artemis_info_create(root);                     // slots or phase overlay
+  s_event_overlay = artemis_event_create(root);  // NASA event banner (above info)
+  artemis_logo_create(root);                     // mission logo (topmost)
 
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
@@ -354,7 +372,8 @@ static void main_window_load(Window *window) {
 static void main_window_unload(Window *window) {
   if (s_info_timer) { app_timer_cancel(s_info_timer); s_info_timer = NULL; }
   artemis_logo_destroy();
-  artemis_event_destroy();
+  artemis_event_destroy(s_event_overlay);
+  s_event_overlay = NULL;
   artemis_info_destroy();
   artemis_clock_destroy();
 }
@@ -363,6 +382,7 @@ static void main_window_unload(Window *window) {
 static void init(void) {
   prv_load_settings();
   prv_load_artemis();
+  prv_load_mission();
 
   s_font_time  = fonts_load_custom_font(resource_get_handle(FONT_TIME));
   s_font_date  = fonts_load_custom_font(resource_get_handle(FONT_DATE));

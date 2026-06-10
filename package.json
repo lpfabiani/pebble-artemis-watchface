@@ -1,7 +1,7 @@
 {
   "name": "artemis-missions",
   "author": "LP Fabiani",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
@@ -47,7 +47,22 @@
       "ARTEMIS_MS1_NAME", "ARTEMIS_MS1_EPOCH",
       "ARTEMIS_MS2_NAME", "ARTEMIS_MS2_EPOCH",
       "ARTEMIS_MS3_NAME", "ARTEMIS_MS3_EPOCH",
-      "ARTEMIS_MS4_NAME", "ARTEMIS_MS4_EPOCH"
+      "ARTEMIS_MS4_NAME", "ARTEMIS_MS4_EPOCH",
+      "REQUEST_MISSION",
+      "MISSION_SYNCED",
+      "MISSION_NAME",
+      "MISSION_CREW",
+      "MISSION_LAUNCH_EPOCH",
+      "MISSION_END_HOURS",
+      "MISSION_STATS_MET_S",
+      "MISSION_STATS_MAX_DIST_KM",
+      "MISSION_STATS_MAX_SPEED_KMH",
+      "MISSION_STATS_MOON_DIST_KM",
+      "MISSION_EVT0_EPOCH", "MISSION_EVT0_MSG", "MISSION_EVT0_MIN",
+      "MISSION_EVT1_EPOCH", "MISSION_EVT1_MSG", "MISSION_EVT1_MIN",
+      "MISSION_EVT2_EPOCH", "MISSION_EVT2_MSG", "MISSION_EVT2_MIN",
+      "MISSION_EVT3_EPOCH", "MISSION_EVT3_MSG", "MISSION_EVT3_MIN",
+      "MISSION_EVT4_EPOCH", "MISSION_EVT4_MSG", "MISSION_EVT4_MIN"
     ],
     "resources": {
       "media": [

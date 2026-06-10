@@ -1,12 +1,15 @@
 /**
  * @file artemis_event.h
- * @brief Special event detection and overlay banner interface.
+ * @brief Reusable event overlay: instance-based centered text banner.
  *
- * Owns @c s_event_overlay_layer and the event detection logic
- * (hardcoded lunar flyby table + dynamic API milestones). Separated from
- * @c artemis_info.c so the event overlay can be managed independently of
- * the info slot layer, and so @c main.c can orchestrate both from a clean
- * state machine.
+ * ArtemisEventOverlay wraps a TextLayer and handles vertical centering in the
+ * top zone. Callers create one instance per display context:
+ *   - main.c         → NASA mission events (highest-priority banner)
+ *   - artemis_info.c → phase text (pre-launch T-minus, post-mission stats)
+ *
+ * artemis_event_check() is a free function that queries event data sources
+ * (s_mission.events synced from the cloud + API milestones) and is
+ * independent of any instance.
  *
  * @author LP Fabiani
  * @date 2026
@@ -14,32 +17,26 @@
 #pragma once
 #include <pebble.h>
 
-// ─── Special events ───────────────────────────────────────────────────────────
-#define SPECIAL_EVENTS_INIT          
-/* // PAST EVENTS - ARTEMIS II:
-#define SPECIAL_EVENTS_INIT          \
-  { 1775501100UL, "MOON OBS.\nBEGINS",     0 }, \
-  { 1775515620UL, "BEHIND\nTHE MOON",      0 }, \
-  { 1775516520UL, "CLOSEST\nTO MOON",      0 }, \
-  { 1775516700UL, "MAX DIST\nFROM EARTH",  0 }, \
-  { 1775518020UL, "SIGNAL\nRESTORED",      0 }, \
-  { 1775524800UL, "MOON OBS.\nENDS",       0 }, 
-*/
+// ─── Event overlay instance ───────────────────────────────────────────────────
+typedef struct {
+  TextLayer  *layer;
+  const char *last_msg;  // transition tracking for artemis_event_show vibration
+} ArtemisEventOverlay;
 
-// Create the event overlay text layer as a child of root. Hidden by default.
-void artemis_event_create(Layer *root);
+// Allocate an overlay as a child of parent. Hidden by default.
+ArtemisEventOverlay *artemis_event_create(Layer *parent);
 
-// Destroy the event overlay layer.
-void artemis_event_destroy(void);
+// Destroy the overlay and free the struct.
+void artemis_event_destroy(ArtemisEventOverlay *ev);
 
-void artemis_event_show(void);
-void artemis_event_hide(void);
+// Center msg vertically in the top zone, set text, show. Vibrates if msg
+// changed since the last call and vibrate is true. No-op if ev or msg is NULL.
+void artemis_event_show(ArtemisEventOverlay *ev, const char *msg, bool vibrate);
 
-// Check all event sources for an active event. Vibrates on transition to a
-// new event. Returns the message string, or NULL if no event is active.
-// Call every display update cycle (main.c — artemis_update_display).
+// Hide the overlay.
+void artemis_event_hide(ArtemisEventOverlay *ev);
+
+// ─── Event detection (free function) ─────────────────────────────────────────
+// Query s_mission.events (cloud-synced) + upcoming milestones from API.
+// Returns the active event message, or NULL. Pure — no side effects.
 const char *artemis_event_check(void);
-
-// Measure msg, reframe the overlay layer so the text is vertically centred
-// in the top zone, and set the text. Must be called before artemis_event_show().
-void artemis_event_update(const char *msg);

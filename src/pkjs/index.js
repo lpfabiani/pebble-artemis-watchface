@@ -11,11 +11,19 @@ var DEBUG_ENABLED = true;  // Set to true to enable debug logging, false to disa
 // ─── Constants ────────────────────────────────────────────────────────────────
 var API_ALL_URL   = 'https://artemis.cdnspace.ca/api/all';
 var TIMELINE_URL  = 'https://artemis.cdnspace.ca/api/timeline';
+var MISSION_URL   = 'https://raw.githubusercontent.com/lpfabiani/pebble-artemis-watchface/main/missions/active.json';
 
 // Throttle: don't re-fetch if we fetched in last 5 minutes
 var THROTTLE_MS = 5 * 60 * 1000;
 
-// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match MISSION_END_HOURS in artemis.h)
+// Mission-data throttle: the watch already paces requests to once every 24h
+// (see MISSION_SYNC_INTERVAL_S in main.c); this is just a safety net against
+// duplicate REQUEST_MISSION messages (e.g. watch reboot mid-cycle).
+var MISSION_THROTTLE_MS    = 23 * 60 * 60 * 1000;
+var MISSION_EVENT_WINDOW_MS = 48 * 60 * 60 * 1000;
+var MAX_MISSION_EVENTS     = 5;
+
+// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match LAUNCH_EPOCH / MISSION_END_HOURS in artemis_mission.h)
 var MAX_UPCOMING = 5;
 
 // For Artemis II
@@ -233,6 +241,89 @@ function fetchArtemisData() {
   });
 }
 
+// ─── Mission data fetch ───────────────────────────────────────────────────────
+// Fetches missions/active.json, keeps only events landing in the next 48h
+// (soonest MAX_MISSION_EVENTS first — mirrors getUpcomingMilestones), and
+// forwards everything to the watch in one AppMessage. MISSION_SYNCED=1 is
+// always sent last so the watch can tell a complete batch arrived before
+// persisting (see artemis_comms.c inbox handler).
+function fetchMissionData() {
+  var lastFetch = parseInt(localStorage.getItem('lastMissionF') || '0', 10);
+  if (Date.now() - lastFetch < MISSION_THROTTLE_MS) {
+    console.log('Mission fetch throttled: ' + Math.round((Date.now() - lastFetch) / 1000) + 's since last');
+    return;
+  }
+
+  console.log('Fetching mission data...');
+  xhrRequest(MISSION_URL, function(text) {
+    var mission;
+    try { mission = JSON.parse(text); } catch (e) {
+      console.log('mission JSON parse failed: ' + e.message);
+      return;
+    }
+
+    localStorage.setItem('lastMissionF', String(Date.now()));
+
+    var stats  = mission.stats  || {};
+    var events = mission.events || [];
+    var now    = Date.now();
+    var windowEnd = now + MISSION_EVENT_WINDOW_MS;
+
+    // Build future-only list (strictly after now), sorted soonest-first.
+    var future = [];
+    for (var i = 0; i < events.length; i++) {
+      var evMs = (events[i].epoch || 0) * 1000;
+      if (evMs > now) future.push(events[i]);
+    }
+    future.sort(function(a, b) { return a.epoch - b.epoch; });
+
+    // Keep all events within the 48h window, up to MAX_MISSION_EVENTS.
+    // If nothing falls within the window, always include at least the soonest
+    // future event — so the watch always has something to count down to.
+    var upcoming = [];
+    for (var i = 0; i < future.length; i++) {
+      var evMs = future[i].epoch * 1000;
+      if (evMs <= windowEnd) {
+        upcoming.push(future[i]);
+        if (upcoming.length >= MAX_MISSION_EVENTS) break;
+      } else if (upcoming.length === 0) {
+        upcoming.push(future[i]);  // nearest future event, beyond 48h window
+        break;
+      } else {
+        break;  // sorted: everything past here is also beyond the window
+      }
+    }
+
+    var msg = {
+      'MISSION_NAME':                String(mission.name || '').substring(0, 15),
+      'MISSION_CREW':                String(mission.crew || '').substring(0, 35),
+      'MISSION_LAUNCH_EPOCH':        mission.launchEpoch || 0,
+      'MISSION_END_HOURS':           mission.endHours || 0,
+      'MISSION_STATS_MET_S':         stats.metS         || 0,
+      'MISSION_STATS_MAX_DIST_KM':   stats.maxDistKm    || 0,
+      'MISSION_STATS_MAX_SPEED_KMH': stats.maxSpeedKmh  || 0,
+      'MISSION_STATS_MOON_DIST_KM':  stats.moonDistKm   || 0
+    };
+    for (var j = 0; j < MAX_MISSION_EVENTS; j++) {
+      var ev = upcoming[j];
+      msg['MISSION_EVT' + j + '_EPOCH'] = ev ? (ev.epoch || 0) : 0;
+      msg['MISSION_EVT' + j + '_MSG']   = ev ? String(ev.message || '').substring(0, 23) : '';
+      msg['MISSION_EVT' + j + '_MIN']   = ev ? (ev.displayMinutes || 0) : 0;
+    }
+    msg['MISSION_SYNCED'] = 1;
+
+    console.log('Mission: ' + msg['MISSION_NAME'] + ' launch=' + msg['MISSION_LAUNCH_EPOCH'] +
+                ' events(fwd)=' + upcoming.length + '/' + events.length);
+
+    Pebble.sendAppMessage(msg,
+      function() { console.log('Mission data sent OK'); },
+      function(e) { console.log('Mission send failed: ' + JSON.stringify(e)); }
+    );
+  }, function(err) {
+    console.log('mission fetch error: ' + err);
+  });
+}
+
 // ─── Pebble event listeners ───────────────────────────────────────────────────
 Pebble.addEventListener('ready', function() {
   console.log('Artemis Missions Watchface JS ready');
@@ -242,5 +333,8 @@ Pebble.addEventListener('ready', function() {
 Pebble.addEventListener('appmessage', function(e) {
   if (e.payload['REQUEST_ARTEMIS']) {
     fetchArtemisData();
+  }
+  if (e.payload['REQUEST_MISSION']) {
+    fetchMissionData();
   }
 });
