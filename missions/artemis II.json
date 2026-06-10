@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "Artemis II",
+  "crew": "",
+  "launchEpoch": 1780682400,
+  "endHours": 229,
+  "stats": {
+    "metS": 0,
+    "maxDistKm": 0,
+    "maxSpeedKmh": 0,
+    "moonDistKm": 0
+  },
+  "events": [
+    { "epoch": 1775501100, "message": "MOON OBS.\nBEGINS", "displayMinutes": 0 },
+    { "epoch": 1775515620, "message": "BEHIND\nTHE MOON", "displayMinutes": 0 },
+    { "epoch": 1775516520, "message": "CLOSEST\nTO MOON", "displayMinutes": 0 },
+    { "epoch": 1775516700, "message": "MAX DIST\nFROM EARTH", "displayMinutes": 0 },
+    { "epoch": 1775518020, "message": "SIGNAL\nRESTORED", "displayMinutes": 0 },
+    { "epoch": 1775524800, "message": "MOON OBS.\nENDS", "displayMinutes": 0 }
+  ]
+}
