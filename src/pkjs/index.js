@@ -6,7 +6,7 @@ var clayConfig = require('./config');
 var clay = new Clay(clayConfig);
 
 // ─── Debug logging ────────────────────────────────────────────────────────────
-var DEBUG_ENABLED = true;  // Set to true to enable debug logging, false to disable
+var DEBUG_ENABLED = false;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 var API_ALL_URL   = 'https://artemis.cdnspace.ca/api/all';
@@ -23,7 +23,7 @@ var MISSION_THROTTLE_MS    = 23 * 60 * 60 * 1000;
 var MISSION_EVENT_WINDOW_MS = 48 * 60 * 60 * 1000;
 var MAX_MISSION_EVENTS     = 5;
 
-// Mission end: LAUNCH_EPOCH_MS + 229 hours (must match LAUNCH_EPOCH / MISSION_END_HOURS in artemis_mission.h)
+// Artemis II hardcoded fallback — used only when /api/all fails after mission end
 var MAX_UPCOMING = 5;
 
 // For Artemis II
@@ -302,7 +302,8 @@ function fetchMissionData() {
       'MISSION_STATS_MET_S':         stats.metS         || 0,
       'MISSION_STATS_MAX_DIST_KM':   stats.maxDistKm    || 0,
       'MISSION_STATS_MAX_SPEED_KMH': stats.maxSpeedKmh  || 0,
-      'MISSION_STATS_MOON_DIST_KM':  stats.moonDistKm   || 0
+      'MISSION_STATS_MOON_DIST_KM':  stats.moonDistKm   || 0,
+      'MISSION_DEFAULT_MSG':         String(mission.defaultMessage || '').substring(0, 35)
     };
     for (var j = 0; j < MAX_MISSION_EVENTS; j++) {
       var ev = upcoming[j];

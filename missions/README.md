@@ -11,6 +11,7 @@ update every installed watchface; no app rebuild or store resubmission needed.
 | Field | Type | Meaning |
 |---|---|---|
 | `name` | string | Mission name shown pre-launch and post-mission, e.g. `"Artemis III"` |
+| `defaultMessage` | string | Optional fallback phase text, e.g. `"Artemis III coming in 2027"`. When non-empty, it replaces the T-minus/completed-ago/next-event text entirely, any time the watch isn't showing an active mission or a special event banner. `""` (or omit) to fall back to the normal auto-generated text. Max ~35 characters. |
 | `crew` | string | Two comma-separated lines, `\n`-joined, e.g. `"Wiseman, Glover\nKoch, Hansen"`. `""` omits the crew line (use before the crew is announced). |
 | `launchEpoch` | number | UTC unix seconds of liftoff. Convert at https://www.unixtimestamp.com, verify with `date -d @<epoch> -u`. `0` keeps the watch on the "no mission" placeholder. |
 | `endHours` | number | Nominal mission duration in hours (used as a watch-side fallback; the live telemetry API's `mission_complete` flag is authoritative when connected). |
@@ -47,3 +48,8 @@ update every installed watchface; no app rebuild or store resubmission needed.
   whichever ones are non-zero.
 - For a brand-new mission with no known events yet, ship `"events": []` — the
   watch falls back to its normal T-minus-launch / completed-X-ago phase text.
+- `defaultMessage` takes priority over *all* of the above phase text, including
+  the next-scheduled-event countdown — it's meant for cases like "we don't
+  have a real launch date yet, don't show a countdown to a placeholder one."
+  It only ever replaces the pre-launch/post-mission phase overlay; it never
+  appears during an active mission or while a special event banner is showing.

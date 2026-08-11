@@ -30,6 +30,7 @@
 ArtemisSettings s_settings;
 ArtemisData     s_artemis;
 ArtemisMission  s_mission;
+char            s_mission_default_msg[MISSION_MSG_LEN];
 Layer          *s_root_layer = NULL;
 int             s_root_w = 0, s_root_h = 0;
 int             s_split_y = 0;
@@ -41,6 +42,7 @@ static Window              *s_main_window   = NULL;
 static DisplayMode          s_display_mode  = DISPLAY_INFO;
 static AppTimer            *s_info_timer    = NULL;
 static ArtemisEventOverlay *s_event_overlay = NULL;
+static bool                 s_peek_active   = false;  // true while a Timeline Peek obstructs the screen
 
 // ─── Overlay geometry ─────────────────────────────────────────────────────────
 void overlay_geometry(int *out_top, int *out_h) {
@@ -128,7 +130,7 @@ void artemis_apply_interaction_settings(void) {
 }
 
 // ─── Display orchestration ────────────────────────────────────────────────────
-void artemis_show_display_elements(bool clock, bool logo, bool info, const char* event_text) {
+void artemis_show_display_elements(bool clock, bool info, const char* event_text) {
   if (clock) artemis_clock_show(); else artemis_clock_hide();
 
   if (event_text) {
@@ -162,22 +164,32 @@ void artemis_update_display(void) {
     s_display_mode = event_msg ? DISPLAY_EVENT : DISPLAY_LOGO;
   }
 
+  // A Timeline Peek is obstructing the screen: event banner and mission info
+  // stay suppressed regardless of what triggered this call (tick, comms,
+  // info-timer revert...). prv_handle_peek() owns clock/logo visibility for
+  // the duration of the peek, so leave them alone here.
+  if (s_peek_active) {
+    artemis_event_hide(s_event_overlay);
+    artemis_info_hide();
+    return;
+  }
+
   switch (s_display_mode) {
     case DISPLAY_LOGO:
       if (s_settings.info_trigger == INFO_TRIGGER_ALWAYS) {
-        artemis_show_display_elements (true, false, true, NULL);
+        artemis_show_display_elements(true, true, NULL);
       }
       else {
-        artemis_show_display_elements (true, false, false, NULL);
+        artemis_show_display_elements(true, false, NULL);
       }
       break;
 
     case DISPLAY_EVENT:
-      artemis_show_display_elements (true, false, false, event_msg);
+      artemis_show_display_elements(true, false, event_msg);
       break;
 
     case DISPLAY_INFO:
-      artemis_show_display_elements (true, false, true, NULL);
+      artemis_show_display_elements(true, true, NULL);
       break;
   }
 }
@@ -279,23 +291,37 @@ static void prv_load_mission(void) {
   }
 }
 
+static void prv_default_mission_msg(void) {
+  s_mission_default_msg[0] = '\0';
+}
+
+static void prv_load_mission_msg(void) {
+  prv_default_mission_msg();
+  persist_read_data(MISSION_MSG_KEY, s_mission_default_msg, sizeof(s_mission_default_msg));
+}
+
 // ─── Timeline Peek ────────────────────────────────────────────────────────────
 // .change fires each animation frame as peek slides in/out.
 // .did_change fires once when the peek settles (or fully dismisses).
 //
-// Logo/Event: compress bottom zone smoothly via artemis_clock_peek().
-// Info: bottom zone is normally visible; hide it only while peek is active
-//       so info slots are not obscured by the peek drawer.
+// The clock (time/date) always stays visible and slides up via
+// artemis_clock_peek()/artemis_logo_peek(), regardless of display mode, so
+// the watch keeps showing the time under a notification. The event banner
+// and mission info are suppressed entirely for the duration of the peek —
+// artemis_update_display() (guarded by s_peek_active) restores whichever of
+// them belongs on screen once the peek fully dismisses.
 static void prv_handle_peek(int unobstructed_h) {
-  if (s_display_mode == DISPLAY_INFO) {
-    if (unobstructed_h < s_root_h) {
-      artemis_clock_hide();
-    } else {
-      artemis_clock_show();
-    }
-  } else {
-    artemis_clock_peek(unobstructed_h);
+  s_peek_active = (unobstructed_h < s_root_h);
+
+  if (s_peek_active) {
+    artemis_event_hide(s_event_overlay);
+    artemis_info_hide();
   }
+
+  artemis_clock_peek(unobstructed_h);
+  artemis_logo_peek(unobstructed_h);
+
+  if (!s_peek_active) artemis_update_display();
 }
 
 static void prv_unobstructed_change(AnimationProgress progress, void *context) {
@@ -383,6 +409,7 @@ static void init(void) {
   prv_load_settings();
   prv_load_artemis();
   prv_load_mission();
+  prv_load_mission_msg();
 
   s_font_time  = fonts_load_custom_font(resource_get_handle(FONT_TIME));
   s_font_date  = fonts_load_custom_font(resource_get_handle(FONT_DATE));

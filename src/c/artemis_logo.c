@@ -24,6 +24,10 @@ static Layer             *s_logo_layer       = NULL;
 static GDrawCommandImage *s_logo_pdc         = NULL;
 static GSize              s_logo_draw_size   = {0, 0};
 static GPoint             s_logo_draw_offset = {0, 0};
+static bool               s_logo_peek_hidden = false;  // true if artemis_logo_peek() hid it for lack of space
+
+#define LOGO_MIN_SIDE 16          // below this, hide instead of drawing an illegible sliver
+#define LOGO_NO_LIMIT INT32_MAX   // sentinel: no Timeline Peek boundary in effect
 
 // ─── Logo (PDC vector) ────────────────────────────────────────────────────────
 static void prv_scale_pdc_image(GDrawCommandImage *img, GSize target);
@@ -37,11 +41,33 @@ static void logo_update_proc(Layer *layer, GContext *ctx) {
 // theme. Creates the layer the first time it is called; subsequent calls
 // release the old PDC, load the correct variant, rescale, and reposition
 // the existing layer.
-static void prv_setup_logo(Layer *s_root_layer) {
-  if (!s_root_layer) return;
+//
+// max_bottom_y bounds the logo's bottom edge (including its intentional
+// moon-zone overflow) to stay at or above that absolute Y — pass
+// LOGO_NO_LIMIT for the normal, unconstrained layout used at creation time.
+// Returns false if the available space is too small to render a legible
+// logo (below LOGO_MIN_SIDE); the caller is responsible for hiding the
+// layer in that case, and no layer/PDC state is otherwise touched.
+static bool prv_setup_logo(Layer *root, int max_bottom_y) {
+  if (!root) return false;
 
   int top_zone_y, top_zone_h;
   overlay_geometry(&top_zone_y, &top_zone_h);
+
+  // Logo is ~1/6 taller than the top zone so the arc at the base of the A
+  // spills into the bottom zone and sits naturally over the moon image.
+  // Capped by screen width minus 8px side margins.
+  int max_logo_side = top_zone_h + top_zone_h / 6;
+  if (max_logo_side > s_root_w - 8) max_logo_side = s_root_w - 8;
+
+  // Shrink further if a Timeline Peek boundary leaves less room than the
+  // normal layout: logo_y (top_zone_y + 2) + side must not cross max_bottom_y.
+  if (max_bottom_y != LOGO_NO_LIMIT) {
+    int available = max_bottom_y - (top_zone_y + 2);
+    if (available < max_logo_side) max_logo_side = available;
+  }
+
+  if (max_logo_side < LOGO_MIN_SIDE) return false;
 
   // Release any previously loaded PDC — scaling is destructive in-place.
   if (s_logo_pdc) {
@@ -50,13 +76,6 @@ static void prv_setup_logo(Layer *s_root_layer) {
   }
 
   s_logo_pdc = gdraw_command_image_create_with_resource(LOGO_RESOURCE);
-
-  // Logo is ~1/6 taller than the top zone so the arc at the base of the A
-  // spills into the bottom zone and sits naturally over the moon image.
-  // Capped by screen width minus 8px side margins.
-  int max_logo_side = top_zone_h + top_zone_h / 6;
-  if (max_logo_side > s_root_w - 8) max_logo_side = s_root_w - 8;
-  if (max_logo_side < 1) max_logo_side = 1;
 
   if (s_logo_pdc) {
     GSize pdc_original_size = gdraw_command_image_get_bounds_size(s_logo_pdc);
@@ -92,12 +111,13 @@ static void prv_setup_logo(Layer *s_root_layer) {
   if (!s_logo_layer) {
     s_logo_layer = layer_create(frame);
     layer_set_update_proc(s_logo_layer, logo_update_proc);
-    layer_add_child(s_root_layer, s_logo_layer);
+    layer_add_child(root, s_logo_layer);
     layer_set_hidden(s_logo_layer, true);
   } else {
     layer_set_frame(s_logo_layer, frame);
     layer_mark_dirty(s_logo_layer);
   }
+  return true;
 }
 
 // Scale all points and radii in a PDC image in-place to fit target size.
@@ -170,12 +190,45 @@ static void prv_scale_pdc_image(GDrawCommandImage *img, GSize target) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 void artemis_logo_create(Layer *root) {
-  prv_setup_logo(root);
+  prv_setup_logo(root, LOGO_NO_LIMIT);
 }
 
 void artemis_logo_destroy(void) {
   if (s_logo_layer) { layer_destroy(s_logo_layer);               s_logo_layer = NULL; }
   if (s_logo_pdc)   { gdraw_command_image_destroy(s_logo_pdc);   s_logo_pdc   = NULL; }
+  s_logo_peek_hidden = false;
+}
+
+// Recompute the logo's size for Timeline Peek so it stays clear of the
+// moon/time/date zone as that zone moves up. No-op if the logo doesn't exist
+// yet, or is currently hidden for an unrelated reason (mission not complete,
+// event active) — layer_get_hidden() combined with s_logo_peek_hidden tells
+// us which case we're in without main.c needing to expose its own state.
+void artemis_logo_peek(int unobstructed_h) {
+  if (!s_logo_layer) return;
+  if (layer_get_hidden(s_logo_layer) && !s_logo_peek_hidden) return;
+
+  int time_area_top_y = unobstructed_h - (s_root_h - s_split_y);
+
+  // At rest (no peek), time_area_top_y == s_split_y — exactly the boundary
+  // the logo's normal 1/6 overflow is designed around. Only constrain when
+  // the moon has genuinely moved above its resting spot; otherwise pass
+  // LOGO_NO_LIMIT so the default layout is reproduced exactly (no shrink).
+  // When constrained, preserve the same designed overflow amount
+  // (s_split_y / 6), just anchored to the moon's current, higher position.
+  int max_bottom_y = (time_area_top_y < s_split_y)
+      ? time_area_top_y + (s_split_y / 6)
+      : LOGO_NO_LIMIT;
+
+  bool fits = prv_setup_logo(s_root_layer, max_bottom_y);
+
+  if (!fits) {
+    layer_set_hidden(s_logo_layer, true);
+    s_logo_peek_hidden = true;
+  } else if (s_logo_peek_hidden) {
+    layer_set_hidden(s_logo_layer, false);
+    s_logo_peek_hidden = false;
+  }
 }
 
 void artemis_logo_show(void) {
@@ -186,9 +239,3 @@ void artemis_logo_hide(void) {
   if (s_logo_layer) layer_set_hidden(s_logo_layer, true);
 }
 
-// - Never used
-/*
-void artemis_logo_refresh(void) {
-  if (s_logo_layer) layer_mark_dirty(s_logo_layer);
-}
-*/

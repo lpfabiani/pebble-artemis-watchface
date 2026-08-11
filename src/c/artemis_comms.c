@@ -83,6 +83,15 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
 #undef FETCH_STR
 #undef FETCH_I32
 
+  // Not part of ArtemisMission (that struct is already close to the 256-byte
+  // persist_write_data limit) — parsed and persisted separately, but still
+  // batched with the rest of the mission sync via mission_synced below.
+  if ((t = dict_find(iter, MESSAGE_KEY_MISSION_DEFAULT_MSG)) && t->type == TUPLE_CSTRING) {
+    strncpy(s_mission_default_msg, t->value->cstring, sizeof(s_mission_default_msg) - 1);
+    s_mission_default_msg[sizeof(s_mission_default_msg) - 1] = '\0';
+    mission_synced = true;
+  }
+
   for (int i = 0; i < MAX_UPCOMING; i++) {
     if ((t = dict_find(iter, s_name_keys[i]))) {
       strncpy(s_artemis.upcoming[i].name, t->value->cstring,
@@ -162,6 +171,7 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
     s_mission.num_events     = n;
     s_mission.last_sync_epoch = (uint32_t)time(NULL);
     persist_write_data(MISSION_KEY, &s_mission, sizeof(s_mission));
+    persist_write_data(MISSION_MSG_KEY, s_mission_default_msg, sizeof(s_mission_default_msg));
     mission_synced = true;
   }
   if (cfg_changed) {

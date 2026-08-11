@@ -77,7 +77,6 @@ typedef enum {
 // Single fixed theme. All render code uses these constants — no inline colors.
 #ifdef PBL_COLOR
   #define ARTEMIS_COLOR_SKY          GColorBlack
-  #define ARTEMIS_COLOR_SKY_HORIZON  GColorDukeBlue      // #000055 — unused, kept for reference
   #define ARTEMIS_COLOR_SKY_STARS    GColorWhite
   #define ARTEMIS_COLOR_VALUES       GColorWhite
   #define ARTEMIS_COLOR_ACCENT       GColorVividCerulean // #0055AA — labels, lines, next-event ETA
@@ -86,7 +85,6 @@ typedef enum {
   #define ARTEMIS_COLOR_DATE         GColorWhite
 #else
   #define ARTEMIS_COLOR_SKY          GColorBlack
-  #define ARTEMIS_COLOR_SKY_HORIZON  GColorBlack
   #define ARTEMIS_COLOR_SKY_STARS    GColorWhite
   #define ARTEMIS_COLOR_VALUES       GColorWhite
   #define ARTEMIS_COLOR_ACCENT       GColorWhite
@@ -180,6 +178,14 @@ typedef struct {
   MissionEvent events[MAX_MISSION_EVENTS];
 } ArtemisMission;
 
+// Default/fallback phase text (e.g. "Artemis III coming in 2027"), shown in
+// place of the T-minus/completed-ago/next-event text whenever present and the
+// watch isn't showing an active mission or a special event. Persisted under
+// its own key, separate from ArtemisMission — that struct is already close to
+// persist_write_data's 256-byte-per-key limit (~244/256 bytes).
+#define MISSION_MSG_KEY  4
+#define MISSION_MSG_LEN  36
+
 #define MAX_UPCOMING 5
 typedef struct {
   char     name[19];   // shortened milestone name (≤18 chars + null)
@@ -209,6 +215,7 @@ typedef struct {
 extern ArtemisSettings s_settings;
 extern ArtemisData     s_artemis;
 extern ArtemisMission  s_mission;
+extern char            s_mission_default_msg[MISSION_MSG_LEN];
 extern Layer          *s_root_layer;
 extern int             s_root_w, s_root_h;
 extern int             s_split_y;

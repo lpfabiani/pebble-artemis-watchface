@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.4] — 2026-08-09
+
+### Added
+- `defaultMessage` field in `missions/active.json` (e.g. `"Artemis III coming in 2027"`) — an optional fallback phase text that replaces the T-minus/completed-ago/next-event text whenever present and the watch isn't showing an active mission or a special event.
+- App version now shown on the phone configuration page (`config.js`), sourced from `package.json` so it can't drift out of sync.
+
+### Fixed
+- Removed unreachable negative-days branch in post-mission "completed ago" text formatting (`artemis_info.c`) — `d` was already clamped non-negative upstream.
+- Fixed "Always" option in the *Show mission info* trigger select sending the wrong value (`config.js`); now correctly maps to `INFO_TRIGGER_ALWAYS`.
+
+### Changed
+- Timeline Peek now keeps the clock (and logo) visible and sliding up to stay clear of the notification in every display mode, and suppresses the event banner and mission-info panel for the duration of the peek — previously only the clock in `DISPLAY_INFO` mode reacted to a peek at all.
+- Logo now shrinks to stay clear of the clock as it slides up during a Timeline Peek, instead of staying fixed size and getting overlapped.
+- Disabled verbose debug logging by default (`DEBUG_ENABLED = false` in `index.js`) to stop production log spam.
+- Simplified `artemis_show_display_elements()` — dropped the unused `logo` parameter; callers in `main.c` updated accordingly.
+- Simplified `prv_select_font()` in `artemis_info.c` — dropped the unused `use_artemis` parameter and its dead commented-out custom-font branch; callers updated.
+
+### Removed
+- Unused `IMAGE_ARTEMIS_LOGO_BW_BLACK` resource (empty target platforms) from `package.json`.
+- Unused `ARTEMIS_COLOR_SKY_HORIZON` color constants (color and B&W palettes) from `artemis.h`.
+- Dead, already-commented-out `artemis_logo_refresh()` from `artemis_logo.c`/`.h` and its mention in `src/c/README.md`.
+- Historical commented-out code blocks (removed battery bar, removed header, old time/date layer placement) from `prv_create_chrome()` in `artemis_info.c`.
+
 ## [2.3] — 2026-05-30
 
 - Changes for having pre-mission and post-mission information.

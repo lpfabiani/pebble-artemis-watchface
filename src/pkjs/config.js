@@ -1,3 +1,5 @@
+var appVersion = require('../../package.json').version;
+
 var fieldOptions = [
   { label: "None",                   value: "0"  },
   { label: "Mission Elapsed Time",   value: "1"  },
@@ -18,7 +20,11 @@ var fieldOptions = [
 module.exports = [
   {
     "type": "heading",
-    "defaultValue": "Artemis II Settings"
+    "defaultValue": "Artemis Missions Watchface Settings"
+  },
+  {
+    "type": "text",
+    "defaultValue": "Version " + appVersion
   },
 
   // ── Watch Behaviour ────────────────────────────────────────────────────────
@@ -61,7 +67,7 @@ module.exports = [
           { "label": "On shake",          "value": "1" },
           { "label": "On touch",          "value": "2" },
           { "label": "On shake or touch", "value": "3" },
-          { "label": "Always",            "value": "4" }
+          { "label": "Always",            "value": "10" }
         ]
       },
       {

@@ -22,6 +22,10 @@ void artemis_logo_destroy(void);
 void artemis_logo_show(void);
 void artemis_logo_hide(void);
 
-// -- Never used
-// Mark the logo layer dirty (redraws PDC on next render cycle).
-//void artemis_logo_refresh(void);
+// Recompute the logo's size so it doesn't overlap the moon/time/date zone as
+// Timeline Peek moves it up. Pass the current unobstructed height (same value
+// passed to artemis_clock_peek()). Hides the logo if the available space
+// becomes too small to render legibly; restores it once space returns.
+// Safe to call every animation frame — it no-ops if the logo isn't currently
+// shown for reasons unrelated to peek.
+void artemis_logo_peek(int unobstructed_h);

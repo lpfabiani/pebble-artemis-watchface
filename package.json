@@ -1,7 +1,7 @@
 {
   "name": "artemis-missions",
   "author": "LP Fabiani",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "keywords": ["pebble-app"],
   "private": true,
   "dependencies": {
@@ -58,6 +58,7 @@
       "MISSION_STATS_MAX_DIST_KM",
       "MISSION_STATS_MAX_SPEED_KMH",
       "MISSION_STATS_MOON_DIST_KM",
+      "MISSION_DEFAULT_MSG",
       "MISSION_EVT0_EPOCH", "MISSION_EVT0_MSG", "MISSION_EVT0_MIN",
       "MISSION_EVT1_EPOCH", "MISSION_EVT1_MSG", "MISSION_EVT1_MIN",
       "MISSION_EVT2_EPOCH", "MISSION_EVT2_MSG", "MISSION_EVT2_MIN",
@@ -71,12 +72,6 @@
           "type": "bitmap",
           "name": "IMAGE_MENU_ICON",
           "file": "artemis icon.png"
-        },
-        {
-          "type": "raw",
-          "name": "IMAGE_ARTEMIS_LOGO_BW_BLACK",
-          "file": "Artemis Logo Black - Prepared.pdc",
-          "targetPlatforms": []
         },
         {
           "type": "raw",

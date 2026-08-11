@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "Artemis III",
+  "defaultMessage": "Artemis III coming in 2027",
   "crew": "Bresnik, Parmitano\nDouglas, Rubio",
   "launchEpoch": 1780682400,
   "endHours": 229,

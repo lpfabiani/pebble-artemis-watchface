@@ -96,7 +96,6 @@ src/c/
 │                              artemis_logo_destroy()
 │                              artemis_logo_show()
 │                              artemis_logo_hide()
-│                              artemis_logo_refresh()
 │
 ├── artemis_clock.c/.h    always-visible background and bottom zone.
 │                         sky background (black fill + star field) +

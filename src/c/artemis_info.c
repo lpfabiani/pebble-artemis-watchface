@@ -71,6 +71,15 @@ static const char *prv_build_phase_text(MissionPhase phase) {
 
   time_t launch_epoch = (time_t)s_mission.launch_epoch;
 
+  // Default/fallback message (e.g. "Artemis III coming in 2027") takes
+  // priority over the auto-generated T-minus/completed-ago/next-event text
+  // whenever present — outside an active mission and (by virtue of this
+  // function's only caller) outside a special event too.
+  if (phase != MISSION_PHASE_ACTIVE && s_mission_default_msg[0] != '\0') {
+    snprintf(p, rem, "%s", s_mission_default_msg);
+    return s_phase_buf;
+  }
+
   if (phase != MISSION_PHASE_ACTIVE) {
     const MissionEvent *ev = prv_next_event(now);
     if (ev) {
@@ -112,11 +121,8 @@ static const char *prv_build_phase_text(MissionPhase phase) {
     int h = (int)((sec % 86400) / 3600);
     n = snprintf(p, rem, "%s\n", s_mission.name);
     p += n; rem -= n;
-    if (d < 0) snprintf(p, rem, "completed %dh ago", h);
-    else {
-      if (d < 30) snprintf(p, rem, "completed %dd %dh ago", d, h);
-      else        snprintf(p, rem, "completed %dd ago", d);
-    }
+    if (d < 30) snprintf(p, rem, "completed %dd %dh ago", d, h);
+    else        snprintf(p, rem, "completed %dd ago", d);
   }
 
   return s_phase_buf;
@@ -432,35 +438,17 @@ static void decorations_update_proc(Layer *layer, GContext *ctx) {
 }
 
 // ─── Font selection ───────────────────────────────────────────────────────────
-// Selects font based on available height and font family preference
-// Parameters:
-//   height: available vertical space in pixels
-//   bold: currently unused, reserved for future use
-//   use_artemis: true for custom Artemis font, false for system font
-static GFont prv_select_font(int height, bool bold, bool use_artemis) {
-  /*
-  if (use_artemis) {
-    if (height >= 62) return s_artemis_font_52;
-    if (height >= 48) return s_artemis_font_42;
-    if (height >= 44) return s_artemis_font_36;
-    if (height >= 36) return s_artemis_font_24;
-    if (height >= 28) return s_artemis_font_18;
-    return s_artemis_font_14;
+static GFont prv_select_font(int height, bool bold) {
+  if (bold) {
+    if (height >= 36) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+    if (height >= 28) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+    if (height >= 20) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+    return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
   } else {
-  */
-  {
-    // System fonts
-    if (bold) {
-      if (height >= 36) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
-      if (height >= 28) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
-      if (height >= 20) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-      return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
-    } else {
-      if (height >= 36) return fonts_get_system_font(FONT_KEY_GOTHIC_28);
-      if (height >= 28) return fonts_get_system_font(FONT_KEY_GOTHIC_24);
-      if (height >= 20) return fonts_get_system_font(FONT_KEY_GOTHIC_18);
-      return fonts_get_system_font(FONT_KEY_GOTHIC_14);
-    }
+    if (height >= 36) return fonts_get_system_font(FONT_KEY_GOTHIC_28);
+    if (height >= 28) return fonts_get_system_font(FONT_KEY_GOTHIC_24);
+    if (height >= 20) return fonts_get_system_font(FONT_KEY_GOTHIC_18);
+    return fonts_get_system_font(FONT_KEY_GOTHIC_14);
   }
 }
 
@@ -512,27 +500,6 @@ static void prv_create_chrome(void) {
   s_decorations_layer = layer_create(GRect(0, 0, w, h));
   layer_set_update_proc(s_decorations_layer, decorations_update_proc);
   layer_add_child(s_info_layer, s_decorations_layer);
-
-  /* ── Battery bar removed ────────────────────────────────────────────────────
-  #ifdef PBL_ROUND
-    s_battery_layer = layer_create(GRect(0, 0, w, h));  // radial arc
-  #else
-    s_battery_layer = layer_create(GRect(0, 0, w, 3));  // thin rect bar
-  #endif
-  ── */
-
-  /* ── Header "ARTEMIS II" removed ───────────────────────────────────────────
-  #ifdef PBL_ROUND
-    s_header_layer = artemis_make_text_layer(root, GRect(cx-60, 6, 120, 14), ...);
-  #else
-    s_header_layer = artemis_make_text_layer(root, GRect(0, 4, w, 14), ...);
-  #endif
-  ── */
-
-  /* ── Time + date moved to prv_create_bottom_zone ───────────────────────────
-  s_time_layer = artemis_make_text_layer(...);
-  s_date_layer = artemis_make_text_layer(...);
-  ── */
 }
 
 // ─── Slot creation ────────────────────────────────────────────────────
@@ -572,7 +539,7 @@ static void prv_create_slots(void) {
   int col_r_x = s_root_w / 2 + 4;
 
   GFont label_font = s_font_event;
-  GFont value_font = prv_select_font(val_h, false, false);
+  GFont value_font = prv_select_font(val_h, false);
 
   int ai = 0;
 
@@ -624,7 +591,7 @@ static void prv_create_slots(void) {
   int vx = lw + 4, vw = s_root_w - vx - 4;
 
   GFont label_font = s_font_event;
-  GFont value_font = prv_select_font(rh, false, false);
+  GFont value_font = prv_select_font(rh, false);
 
   for (int i = 0; i < s_num_active; i++) {
     int si = s_active_slots[i];  // index into s_settings.slots[]

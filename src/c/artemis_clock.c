@@ -3,10 +3,13 @@
  * @brief Always-visible background scene: sky stars, moon bitmap, time, and date.
  *
  * Draws the solid black sky with a scaled Orion constellation star field.
- * The moon bitmap, time, and date all live inside @c s_time_area_layer — a
- * container that covers the bottom zone (s_split_y → s_root_h). This makes
- * Timeline Peek and DISPLAY_INFO hide/show a single @c layer_set_frame /
- * @c layer_set_hidden call rather than coordinating three independent layers.
+ * The moon bitmap, satellite indicator, time, and date all live inside
+ * @c s_time_area_layer — a viewport normally covering the bottom zone
+ * (s_split_y → s_root_h). Timeline Peek slides this layer itself (full
+ * height, never resized) up so its bottom edge tracks the unobstructed
+ * boundary, moving all its children as one rigid unit. DISPLAY_INFO hides
+ * the whole zone with a single @c layer_set_hidden call, rather than
+ * coordinating each child independently.
  *
  * @author LP Fabiani
  * @date 2026
@@ -15,7 +18,8 @@
 #include "artemis.h"
 
 static Layer       *s_sky_layer         = NULL;
-static Layer       *s_time_area_layer   = NULL;   // container: moon + time + date
+static Layer       *s_time_area_layer   = NULL;   // moon + satellite + time + date; moved during Timeline Peek
+static int          s_bottom_h          = 0;      // fixed content height (full, uncompressed)
 static BitmapLayer *s_moon_bitmap_layer = NULL;
 static GBitmap     *s_moon_bitmap       = NULL;
 static TextLayer   *s_time_layer        = NULL;
@@ -113,10 +117,13 @@ static void prv_update_time(struct tm *tick_time) {
 static void prv_create_bottom_zone(Layer *root) {
   GRect bounds = layer_get_bounds(root);
   int w = bounds.size.w, h = bounds.size.h;
-  int bottom_h = h - s_split_y;
+  s_bottom_h = h - s_split_y;
 
-  // Container — one layer_set_frame/hidden call moves or hides the whole zone
-  s_time_area_layer = layer_create(GRect(0, s_split_y, w, bottom_h));
+  // Container — one layer_set_frame/hidden call moves, hides, or shows the whole zone.
+  // Timeline Peek translates this layer's own frame (see artemis_clock_peek());
+  // its height always stays s_bottom_h, only its Y origin changes, moving all
+  // children (moon, satellite, time, date) as one rigid unit.
+  s_time_area_layer = layer_create(GRect(0, s_split_y, w, s_bottom_h));
   layer_add_child(root, s_time_area_layer);
 
   // Moon bitmap — child of s_time_area_layer; Y=0 is relative to container top
@@ -129,7 +136,7 @@ static void prv_create_bottom_zone(Layer *root) {
   if (s_moon_bitmap) {
     int img_w = gbitmap_get_bounds(s_moon_bitmap).size.w;
     int layer_x = (w - img_w) / 2;  // negative when image wider than screen (clips)
-    s_moon_bitmap_layer = bitmap_layer_create(GRect(layer_x, 0, img_w, bottom_h));
+    s_moon_bitmap_layer = bitmap_layer_create(GRect(layer_x, 0, img_w, s_bottom_h));
     bitmap_layer_set_bitmap(s_moon_bitmap_layer, s_moon_bitmap);
     bitmap_layer_set_alignment(s_moon_bitmap_layer, GAlignCenter);
     bitmap_layer_set_compositing_mode(s_moon_bitmap_layer, GCompOpAssign);
@@ -143,7 +150,7 @@ static void prv_create_bottom_zone(Layer *root) {
 
   // Time + date block — vertically centred in the container (relative coords)
   static int block_h = FONT_TIME_H + FONT_DATE_H + 6;
-  int block_y = (bottom_h - block_h) / 2;
+  int block_y = (s_bottom_h - block_h) / 2;
 
   s_time_layer = artemis_make_text_layer(s_time_area_layer,
                   GRect(0, block_y, w, FONT_TIME_H),
@@ -193,19 +200,11 @@ void artemis_clock_hide(void) {
 
 void artemis_clock_peek(int unobstructed_h) {
   if (!s_time_area_layer) return;
-  int area_h = unobstructed_h - s_split_y;
-  if (area_h < 0) area_h = 0;
-  layer_set_frame(s_time_area_layer, GRect(0, s_split_y, s_root_w, area_h));
-  // Re-centre time+date block within the compressed container
-  static int block_h = FONT_TIME_H + FONT_DATE_H + 6;
-  int block_y = (area_h - block_h) / 2;
-  if (block_y < 0) block_y = 0;
-  if (s_time_layer)
-    layer_set_frame(text_layer_get_layer(s_time_layer),
-                    GRect(0, block_y, s_root_w, FONT_TIME_H));
-  if (s_date_layer)
-    layer_set_frame(text_layer_get_layer(s_date_layer),
-                    GRect(0, block_y + FONT_TIME_H + 2, s_root_w, FONT_DATE_H));
+  // Slide the whole container (full, uncompressed height s_bottom_h) up so
+  // its bottom edge tracks the unobstructed boundary: top_y + s_bottom_h ==
+  // unobstructed_h. Children keep their fixed relative layout and move with it.
+  int top_y = unobstructed_h - s_bottom_h;
+  layer_set_frame(s_time_area_layer, GRect(0, top_y, s_root_w, s_bottom_h));
 }
 
 void artemis_clock_refresh(struct tm *tick_time) {

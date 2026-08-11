@@ -25,9 +25,11 @@ void artemis_clock_destroy(void);
 void artemis_clock_show(void);
 void artemis_clock_hide(void);
 
-// Compress the bottom zone to fit within unobstructed_h pixels (Timeline Peek).
-// Reframes s_time_area_layer and re-centres the time+date block inside it.
-// Pass s_root_h to restore the normal (full-screen) layout.
+// Fit the bottom zone within unobstructed_h pixels (Timeline Peek).
+// Slides s_time_area_layer itself up so its bottom edge tracks unobstructed_h;
+// its height stays fixed and the moon/satellite/time/date content block inside
+// it never moves relative to the layer. Pass s_root_h to restore the normal
+// (full-screen) layout.
 void artemis_clock_peek(int unobstructed_h);
 
 // Update time and date text. Call every minute from tick_handler.
