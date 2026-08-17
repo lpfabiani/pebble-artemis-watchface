@@ -92,6 +92,84 @@ function safeInt(val, multiplier) {
   return Math.round(val * (multiplier || 1));
 }
 
+// ─── Human-readable mission dates ─────────────────────────────────────────────
+// missions/*.json's launchEpoch and events[].epoch may be written as either a
+// raw unix-seconds number (unchanged) or a human-readable date string. Strings
+// with no explicit timezone marker are assumed to be US Eastern time (Kennedy
+// Space Center) — that's the timezone NASA's own launch schedules and press
+// materials use — with automatic EST/EDT selection per the current US DST rule
+// (2nd Sunday of March 2am -> 1st Sunday of November 2am).
+var TZ_MARKER_RE = /(Z|[+-]\d{2}:?\d{2})$|\bUTC\b|\bGMT\b/i;
+var TBD_RE = /^TBD(?:\s+(.+))?$/i;
+var ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+var ISO_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+// nth Sunday (1-indexed) of a given UTC month. Used only to evaluate the US
+// DST rule against wall-clock numbers, never against a real timezone.
+function nthSundayUtc(year, month0, n) {
+  var first = new Date(Date.UTC(year, month0, 1));
+  var firstSunday = 1 + ((7 - first.getUTCDay()) % 7);
+  return firstSunday + (n - 1) * 7;
+}
+
+// True if the given Eastern-local wall-clock moment falls within US DST
+// (EDT, UTC-4); false means standard time (EST, UTC-5).
+function isEasternDst(year, month0, day, hour) {
+  if (month0 < 2 || month0 > 10) return false;      // Jan, Feb, Dec
+  if (month0 > 2 && month0 < 10) return true;        // Apr - Oct
+  if (month0 === 2) {                                 // March
+    var startDay = nthSundayUtc(year, 2, 2);
+    return day > startDay || (day === startDay && hour >= 2);
+  }
+  var endDay = nthSundayUtc(year, 10, 1);             // November
+  return day < endDay || (day === endDay && hour < 2);
+}
+
+// Converts Eastern-local wall-clock numbers (as typed, no timezone attached)
+// to a UTC unix-seconds epoch.
+function easternWallClockToEpoch(year, month0, day, hour, minute, second) {
+  var offsetHours = isEasternDst(year, month0, day, hour) ? 4 : 5;
+  var ms = Date.UTC(year, month0, day, hour, minute, second || 0) + offsetHours * 3600000;
+  return Math.floor(ms / 1000);
+}
+
+// Accepts a unix-seconds number (passthrough) or a date string. Strings with
+// an explicit timezone marker are parsed as-is; strings without one have
+// their wall-clock numbers extracted (via ISO regex, or by round-tripping a
+// loose string through Date's local getters to cancel out the phone's own
+// timezone) and are then treated as Eastern time. Returns null if the value
+// can't be parsed.
+function toEpochSeconds(value) {
+  if (typeof value === 'number') return isNaN(value) ? null : Math.floor(value);
+  if (typeof value !== 'string' || !value.trim()) return null;
+  var str = value.trim();
+
+  if (TZ_MARKER_RE.test(str)) {
+    var ms = Date.parse(str);
+    return isNaN(ms) ? null : Math.floor(ms / 1000);
+  }
+
+  var m = ISO_DATETIME_RE.exec(str);
+  if (m) {
+    return easternWallClockToEpoch(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  }
+  m = ISO_DATE_RE.exec(str);
+  if (m) {
+    return easternWallClockToEpoch(+m[1], +m[2] - 1, +m[3], 0, 0, 0);
+  }
+
+  // Loose, non-ISO format (e.g. "June 15 2027 1:00 PM"): parse once, then
+  // read back the LOCAL fields. Since the parse and the read both use the
+  // phone's own timezone, this round trip recovers the plain wall-clock
+  // numbers as typed, regardless of what timezone the phone is actually in.
+  var d = new Date(str);
+  if (isNaN(d.getTime())) return null;
+  return easternWallClockToEpoch(
+    d.getFullYear(), d.getMonth(), d.getDate(),
+    d.getHours(), d.getMinutes(), d.getSeconds()
+  );
+}
+
 // ─── Main fetch function ──────────────────────────────────────────────────────
 function fetchArtemisData() {
   // Throttle check
@@ -269,6 +347,42 @@ function fetchMissionData() {
     var now    = Date.now();
     var windowEnd = now + MISSION_EVENT_WINDOW_MS;
 
+    // launchEpoch: "TBD" (optionally followed by a rough descriptor, e.g.
+    // "TBD 2027") means the launch isn't scheduled yet. A descriptor
+    // overrides the phone-sent default message with "Upcoming in <it>" —
+    // taking priority over missions/active.json's own defaultMessage, since
+    // it's the more specific, schedule-derived signal.
+    var launchEpoch = 0;
+    var upcomingMsg = null;
+    var launchRaw = mission.launchEpoch;
+    var tbdMatch = (typeof launchRaw === 'string') ? TBD_RE.exec(launchRaw.trim()) : null;
+    if (tbdMatch) {
+      if (tbdMatch[1]) upcomingMsg = 'Upcoming in ' + tbdMatch[1].trim();
+    } else {
+      launchEpoch = toEpochSeconds(launchRaw);
+      if (launchEpoch === null) {
+        console.log('mission launchEpoch unparseable: ' + JSON.stringify(launchRaw));
+        launchEpoch = 0;
+      }
+    }
+
+    // Normalize each event's epoch to a number up front, dropping any that
+    // fail to parse, so all the filtering logic below stays untouched.
+    // epoch: "TBD" marks a not-yet-announced milestone (e.g. an unconfirmed
+    // Artemis III phase) — skipped quietly, not logged as a data error.
+    var normalizedEvents = [];
+    for (var i = 0; i < events.length; i++) {
+      var rawEpoch = events[i].epoch;
+      if (typeof rawEpoch === 'string' && rawEpoch.trim().toUpperCase() === 'TBD') continue;
+      var evEpoch = toEpochSeconds(rawEpoch);
+      if (evEpoch === null) {
+        console.log('mission event unparseable, dropped: ' + JSON.stringify(events[i]));
+        continue;
+      }
+      normalizedEvents.push({ epoch: evEpoch, message: events[i].message, displayMinutes: events[i].displayMinutes });
+    }
+    events = normalizedEvents;
+
     // Build future-only list (strictly after now), sorted soonest-first.
     var future = [];
     for (var i = 0; i < events.length; i++) {
@@ -297,13 +411,13 @@ function fetchMissionData() {
     var msg = {
       'MISSION_NAME':                String(mission.name || '').substring(0, 15),
       'MISSION_CREW':                String(mission.crew || '').substring(0, 35),
-      'MISSION_LAUNCH_EPOCH':        mission.launchEpoch || 0,
+      'MISSION_LAUNCH_EPOCH':        launchEpoch,
       'MISSION_END_HOURS':           mission.endHours || 0,
       'MISSION_STATS_MET_S':         stats.metS         || 0,
       'MISSION_STATS_MAX_DIST_KM':   stats.maxDistKm    || 0,
       'MISSION_STATS_MAX_SPEED_KMH': stats.maxSpeedKmh  || 0,
       'MISSION_STATS_MOON_DIST_KM':  stats.moonDistKm   || 0,
-      'MISSION_DEFAULT_MSG':         String(mission.defaultMessage || '').substring(0, 35)
+      'MISSION_DEFAULT_MSG':         String(upcomingMsg || mission.defaultMessage || '').substring(0, 35)
     };
     for (var j = 0; j < MAX_MISSION_EVENTS; j++) {
       var ev = upcoming[j];

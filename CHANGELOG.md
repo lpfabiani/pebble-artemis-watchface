@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.1] — 2026-08-16
+
+### Added
+- `launchEpoch` and `events[].epoch` in `missions/*.json` now accept a human-readable date string (ISO or loose, e.g. `"2026-04-06 19:27"` or `"June 5, 2026 2:00 PM"`) in addition to a raw unix-seconds number. A string with no explicit timezone marker is assumed to be US Eastern time — the timezone NASA's own launch schedules use — with EST/EDT selected automatically per the current US DST rule; `index.js` converts to epoch before forwarding to the watch.
+- `events[].epoch` also accepts the literal string `"TBD"` for a milestone that's expected but not yet officially dated (e.g. undated Artemis III phases); `index.js` drops these silently before forwarding, without logging them as bad data.
+- `launchEpoch: "TBD <descriptor>"` (e.g. `"TBD 2027"`) makes `index.js` send `"Upcoming in <descriptor>"` as the phase text, overriding `missions/active.json`'s own `defaultMessage` for as long as the launch stays undated.
+
+### Fixed
+- Corrected `missions/artemis II.json`'s `launchEpoch` and `endHours`, which had been inherited from an unrelated placeholder and put the mission's own lunar-flyby events chronologically before its own launch. Now set to the real April 1, 2026 liftoff and ~218h (real launch-to-splashdown) duration, with a splashdown event added.
+
+### Changed
+- `missions/active.json`'s Artemis III event list — previously misattributed Artemis II flyby data — replaced with `"TBD"`-dated placeholders for its own not-yet-scheduled milestones (launch, lunar orbit insertion, landing, EVA, liftoff, splashdown).
+
 ## [2.4] — 2026-08-09
 
 ### Added

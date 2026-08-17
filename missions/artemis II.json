@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "name": "Artemis II",
   "crew": "",
-  "launchEpoch": 1780682400,
-  "endHours": 229,
+  "launchEpoch": "2026-04-01 18:35",
+  "endHours": 218,
   "stats": {
     "metS": 0,
     "maxDistKm": 0,
@@ -11,11 +11,12 @@
     "moonDistKm": 0
   },
   "events": [
-    { "epoch": 1775501100, "message": "MOON OBS.\nBEGINS", "displayMinutes": 0 },
-    { "epoch": 1775515620, "message": "BEHIND\nTHE MOON", "displayMinutes": 0 },
-    { "epoch": 1775516520, "message": "CLOSEST\nTO MOON", "displayMinutes": 0 },
-    { "epoch": 1775516700, "message": "MAX DIST\nFROM EARTH", "displayMinutes": 0 },
-    { "epoch": 1775518020, "message": "SIGNAL\nRESTORED", "displayMinutes": 0 },
-    { "epoch": 1775524800, "message": "MOON OBS.\nENDS", "displayMinutes": 0 }
+    { "epoch": "2026-04-06 14:45", "message": "MOON OBS.\nBEGINS", "displayMinutes": 0 },
+    { "epoch": "2026-04-06 18:47", "message": "BEHIND\nTHE MOON", "displayMinutes": 0 },
+    { "epoch": "2026-04-06 19:02", "message": "CLOSEST\nTO MOON", "displayMinutes": 0 },
+    { "epoch": "2026-04-06 19:05", "message": "MAX DIST\nFROM EARTH", "displayMinutes": 0 },
+    { "epoch": "2026-04-06 19:27", "message": "SIGNAL\nRESTORED", "displayMinutes": 0 },
+    { "epoch": "2026-04-06 21:20", "message": "MOON OBS.\nENDS", "displayMinutes": 0 },
+    { "epoch": "2026-04-10 20:07", "message": "SPLASH-\nDOWN", "displayMinutes": 0 }
   ]
 }
